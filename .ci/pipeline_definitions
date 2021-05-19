@@ -14,7 +14,6 @@ garden-login:
         image: 'golang:1.16'
       build:
         image: 'golang:1.16'
-        execute: 'build.sh'
         output_dir: 'binary'
         timeout: '5m'
 
