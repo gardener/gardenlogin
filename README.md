@@ -1,36 +1,76 @@
-# <repo name>
+# Garden-Login
 
-[![reuse compliant](https://reuse.software/badge/reuse-compliant.svg)](https://reuse.software/)
+`garden-login`s `get-client-certificate` command can be used as a `kubectl` [credential plugin](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#client-go-credential-plugins). It fetches the `cluster-admin` credentials from the API introduced with [GEP-16](https://github.com/gardener/gardener/blob/master/docs/proposals/16-adminkubeconfig-subresource.md). See more details under [Authentication Flow](#authentication-flow)
 
-## How to use this repository template
+With GEP-16, users are able to generate kubeconfigs for `Shoot` clusters with short-lived certificates, to access the cluster as `cluster-admin`.
 
-This template repository can be used to seed new git repositories in the gardener github organisation.
 
-- you need to be a [member of the gardener organisation](https://github.com/orgs/gardener/people)
-  in order to be able to create a new private repository
-- [create the new repository](https://docs.github.com/en/free-pro-team@latest/github/creating-cloning-and-archiving-repositories/creating-a-repository-from-a-template)
-  based on this template repository
-- in the files
-  - `.reuse/dep5`
-  - `CODEOWNERS`
-  - `README.md`
-- replace the following placeholders
-  - `<repo name>`: name of the new repository
-  - `<maintainer team>`: name of the github team in [gardener teams](https://github.com/orgs/gardener/teams)
-    defining maintainers of the new repository.
-    If several repositories share a common topic and the same
-    set of maintainers they can share a common maintainer team
-- set the repository description in the "About" section of your repository
-- describe the new component in additional sections in this `README.md`
-- any contributions to the new repository must follow the rules in the 
-  [contributor guide](https://github.com/gardener/documentation/blob/master/CONTRIBUTING.md)
-- remove this section from this `README.md`
-- ask [@msohn](https://github.com/orgs/gardener/people/msohn) or another
-  [owner of the gardener github organisation](https://github.com/orgs/gardener/people?query=role%3Aowner)
-  - to double-check the initial content of this repository
-  - to create the maintainer team for this new repository
-  - to make this repository public
-  - protect at least the master branch requiring mandatory code review by the maintainers defined in CODEOWNERS
-  - grant admin permission to the maintainers team of the new repository defined in CODEOWNERS
+## Configure garden-login
+`garden-login` requires a configuration file. The default location is in `~/.garden/garden-login.yaml`.
+### Config path overwrite:
+- The `garden-login` config path can be overwritten with the environment variable `GL_HOME`.
+- The `garden-login` config name can be overwritten with the environment variable `GL_CONFIG_NAME`.
 
-## UNDER CONSTRUCTION
+```bash
+export GL_HOME=/alternate/garden/config/dir
+export GL_CONFIG_NAME=myconfig # without extension!
+# config is expected to be under /alternate/garden/config/dir/myconfig.yaml
+```
+
+### Example config:
+```yaml
+gardenClusters:
+- clusterIdentity: landscape-dev # Unique identifier of the garden cluster. See cluster-identity ConfigMap in kube-system namespace of the garden cluster
+  kubeconfig: ~/path/to/garden-cluster/kubeconfig.yaml
+```
+
+## Usage
+An example `kubeconfig` for a shoot cluster could look like the following:
+
+```yaml
+apiVersion: v1
+kind: Config
+clusters:
+  - name: shoot--myproject--mycluster
+    cluster:
+      server: https://api.mycluster.myproject.example.com
+      certificate-authority-data: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCi4uLgotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0t
+      extensions:
+        - name: client.authentication.k8s.io/exec
+          extension:
+            shootRef:
+              namespace: garden-myproject
+              name: mycluster
+            gardenClusterIdentity: landscape-dev # must match with the garden cluster identity from the config
+contexts:
+  - name: shoot--myproject--mycluster
+    context:
+      cluster: shoot--myproject--mycluster
+      user: shoot--myproject--mycluster
+current-context: shoot--myproject--mycluster
+users:
+  - name: shoot--myproject--mycluster
+    user:
+      exec:
+        apiVersion: client.authentication.k8s.io/v1beta1
+        provideClusterInfo: true
+        command: kubectl
+        args:
+          - garden-login
+          - get-client-certificate
+```
+
+## Authentication Flow
+The following describes the flow to authenticate against a `Shoot` cluster as cluster admin:
+
+1. The user would either download the `Shoot` cluster `kubeconfig`
+    - using the `gardener/dashboard` (TODO)
+    - by targeting the cluster with `gardenctl` (TODO)
+    - or using the API to fetch the secret (TODO)
+2. `kubectl` is then configured to use the downloaded `kubeconfig` for the shoot cluster
+3. A `kubectl` command is executed, e.g. `kubectl get namespaces`
+4. The `garden-login` credential plugin is called to print the `ExecCredential` to `stdout`, see [input and output formats](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#input-and-output-formats) for more information.
+5. In case a valid credential is already cached locally it is returned directly. Otherwise, a new credential has to be requested
+6. According to the garden cluster identity under `clusters[].cluster.extensions[].extension.gardenClusterIdentity`, the `garden-login` plugin searches a matching garden cluster in its configuration file (`gardenClusters[].clusterIdentity`) to get the `kubeconfig` of the garden cluster
+7. The `garden-login` plugin calls `shoots/adminkubeconfig` resource with an `AdminKubeConfigRequest` for the `Shoot` cluster referenced under `clusters[].cluster.extensions[].extension.shootRef`
+8. The `garden-login` plugin takes the x509 client certificate from the returned `AdminKubeConfigRequest` under `status.kubeconfig` and prints it as `ExecCredential` to `stdout`
