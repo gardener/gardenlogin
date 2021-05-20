@@ -1,5 +1,7 @@
 # Garden-Login
 
+[![reuse compliant](https://reuse.software/badge/reuse-compliant.svg)](https://reuse.software/)
+
 `garden-login`s `get-client-certificate` command can be used as a `kubectl` [credential plugin](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#client-go-credential-plugins). It fetches the `cluster-admin` credentials from the API introduced with [GEP-16](https://github.com/gardener/gardener/blob/master/docs/proposals/16-adminkubeconfig-subresource.md). See more details under [Authentication Flow](#authentication-flow)
 
 With GEP-16, users are able to generate kubeconfigs for `Shoot` clusters with short-lived certificates, to access the cluster as `cluster-admin`.
