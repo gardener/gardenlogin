@@ -475,6 +475,7 @@ func (s *fakeStore) FindByKey(key certificatecache.Key) (*certificatecache.Certi
 	if !ok {
 		return nil, errors.New("item not found")
 	}
+
 	return res.certificateSet, res.err
 }
 
