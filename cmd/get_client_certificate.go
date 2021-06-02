@@ -9,7 +9,6 @@ package cmd
 import (
 	"context"
 	"crypto/x509"
-	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
 	"errors"
@@ -281,8 +280,8 @@ func (o *GetClientCertificateOptions) getExecCredential(ctx context.Context, cer
 				},
 				Status: &clientauthv1beta1.ExecCredentialStatus{
 					ExpirationTimestamp:   &metav1.Time{Time: certificate.NotAfter},
-					ClientCertificateData: base64.StdEncoding.EncodeToString([]byte(cachedCertificateSet.ClientCertificateData)),
-					ClientKeyData:         base64.StdEncoding.EncodeToString([]byte(cachedCertificateSet.ClientKeyData)),
+					ClientCertificateData: string(cachedCertificateSet.ClientCertificateData),
+					ClientKeyData:         string(cachedCertificateSet.ClientKeyData),
 				},
 			}, nil
 		}
@@ -332,8 +331,8 @@ func (o *GetClientCertificateOptions) getExecCredential(ctx context.Context, cer
 		},
 		Status: &clientauthv1beta1.ExecCredentialStatus{
 			ExpirationTimestamp:   &adminKubeconfigRequest.Status.ExpirationTimestamp,
-			ClientCertificateData: base64.StdEncoding.EncodeToString([]byte(certificateSet.ClientCertificateData)),
-			ClientKeyData:         base64.StdEncoding.EncodeToString([]byte(certificateSet.ClientKeyData)),
+			ClientCertificateData: string(certificateSet.ClientCertificateData),
+			ClientKeyData:         string(certificateSet.ClientKeyData),
 		},
 	}, nil
 }

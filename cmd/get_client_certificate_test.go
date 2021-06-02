@@ -280,11 +280,12 @@ users:
 
 				By("Expecting cached certificate to be printed to out buffer")
 				Expect(out.String()).To(Equal(fmt.Sprintf(
-					`{"kind":"ExecCredential","apiVersion":"client.authentication.k8s.io/v1beta1","spec":{},"status":{"expirationTimestamp":"%s","clientCertificateData":"%s","clientKeyData":"%s"}}
+					`{"kind":"ExecCredential","apiVersion":"client.authentication.k8s.io/v1beta1","spec":{},"status":{"expirationTimestamp":%q,"clientCertificateData":%q,"clientKeyData":%q}}
 `,
 					expirationTime.Format(time.RFC3339),
-					base64.StdEncoding.EncodeToString(clientCert.CertificatePEM),
-					base64.StdEncoding.EncodeToString(clientCert.PrivateKeyPEM))))
+					string(clientCert.CertificatePEM),
+					string(clientCert.PrivateKeyPEM),
+				)))
 				Expect(errOut.String()).To(BeEmpty())
 			})
 
@@ -348,11 +349,11 @@ users:
 
 				By("Expecting no certificate to be printed to out buffer")
 				Expect(out.String()).To(Equal(fmt.Sprintf(
-					`{"kind":"ExecCredential","apiVersion":"client.authentication.k8s.io/v1beta1","spec":{},"status":{"expirationTimestamp":"%s","clientCertificateData":"%s","clientKeyData":"%s"}}
+					`{"kind":"ExecCredential","apiVersion":"client.authentication.k8s.io/v1beta1","spec":{},"status":{"expirationTimestamp":%q,"clientCertificateData":%q,"clientKeyData":%q}}
 `,
 					expirationTime.Format(time.RFC3339),
-					base64.StdEncoding.EncodeToString([]byte("foo")),
-					base64.StdEncoding.EncodeToString([]byte("bar")),
+					"foo",
+					"bar",
 				)))
 				Expect(errOut.String()).To(BeEmpty())
 
