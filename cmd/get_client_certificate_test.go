@@ -8,7 +8,6 @@ package cmd_test
 
 import (
 	"bytes"
-	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -21,12 +20,15 @@ import (
 
 	c "github.com/gardener/garden-login/cmd"
 	"github.com/gardener/garden-login/internal/certificatecache"
+	"github.com/gardener/garden-login/internal/certificatecache/store"
+	"github.com/gardener/garden-login/internal/cmd/util"
 
 	"github.com/gardener/gardener/pkg/apis/authentication"
 	authenticationv1alpha1 "github.com/gardener/gardener/pkg/apis/authentication/v1alpha1"
 	"github.com/gardener/gardener/pkg/utils/secrets"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/spf13/cobra"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
@@ -160,52 +162,72 @@ users:
 				wantErrStr = ""
 			})
 			It("should not report an error on invalid options", AssertSuccess())
+
+			Context("KUBERNETES_EXEC_INFO is unset", func() {
+				BeforeEach(func() {
+					os.Unsetenv("KUBERNETES_EXEC_INFO")
+				})
+
+				Describe("when cluster is not set", func() {
+					BeforeEach(func() {
+						o.ShootCluster = nil
+						gotErr = o.Validate()
+					})
+					It("should not report an error", AssertSuccess())
+				})
+			})
 		})
 
 		Context("should not report an error on invalid options", func() {
-			Context("when name is not set", func() {
+			Describe("when name is not set", func() {
 				BeforeEach(func() {
 					o.ShootRef.Name = ""
 					gotErr = o.Validate()
-					wantErrStr = "name must be specified"
+					wantErrStr = "name must be specified. Hint: update kubectl in case you are using a version older than v1.20.0"
 				})
-				It("should not report an error", AssertError())
+				It("should report an error", AssertError())
 			})
 
-			Context("when namespace is not set", func() {
+			Describe("when namespace is not set", func() {
 				BeforeEach(func() {
 					o.ShootRef.Namespace = ""
 					gotErr = o.Validate()
 					wantErrStr = "namespace must be specified"
 				})
-				It("should not report an error", AssertError())
+				It("should report an error", AssertError())
 			})
 
-			Context("when cluster is not set", func() {
+			Describe("when GardenClusterIdentity is not set", func() {
 				BeforeEach(func() {
-					o.ShootCluster = nil
+					o.GardenClusterIdentity = ""
 					gotErr = o.Validate()
-					wantErrStr = "cluster must be specified"
+					wantErrStr = "garden cluster identity must be specified"
 				})
-				It("should not report an error", AssertError())
+				It("should report an error", AssertError())
 			})
 
-			Context("when cluster server is not set", func() {
+			Context("KUBERNETES_EXEC_INFO is set", func() {
 				BeforeEach(func() {
-					o.ShootCluster.Server = ""
-					gotErr = o.Validate()
-					wantErrStr = "server must be specified"
+					os.Setenv("KUBERNETES_EXEC_INFO", "dummy")
 				})
-				It("should not report an error", AssertError())
-			})
 
-			Context("when certificate authority data is not set", func() {
-				BeforeEach(func() {
-					o.ShootCluster.CertificateAuthorityData = nil
-					gotErr = o.Validate()
-					wantErrStr = "certificate authority data must be specified"
+				Describe("when cluster is not set", func() {
+					BeforeEach(func() {
+						o.ShootCluster = nil
+						gotErr = o.Validate()
+						wantErrStr = "cluster must be specified"
+					})
+					It("should report an error", AssertError())
 				})
-				It("should not report an error", AssertError())
+
+				Describe("when cluster server is not set", func() {
+					BeforeEach(func() {
+						o.ShootCluster.Server = ""
+						gotErr = o.Validate()
+						wantErrStr = "server must be specified"
+					})
+					It("should report an error", AssertError())
+				})
 			})
 		})
 	})
@@ -214,30 +236,72 @@ users:
 		var (
 			caCert     *secrets.Certificate
 			clientCert *secrets.Certificate
-			key        certificatecache.Key
+			storeKey   certificatecache.Key
 			f          *TestFactory
+			cmd        *cobra.Command
+			restClient *fake.RESTClient
 		)
+
+		BeforeEach(func() {
+			storeKey = certificatecache.Key{
+				ShootServer:           "https://api.mycluster.myproject.foo",
+				ShootName:             "mycluster",
+				ShootNamespace:        "garden-myproject",
+				GardenClusterIdentity: "landscape-dev",
+			}
+
+			f = &TestFactory{
+				gardenClusterIdentity: "landscape-dev",
+				homeDirectoy:          "/Users/foo",
+				clock:                 newFakeClock(),
+				store:                 newFakeStore(),
+			}
+
+			cmd = c.NewCmdGetClientCertificate(f, ioStreams)
+
+			caCert = generateCaCert()
+			clientCert = generateClientCert(fakeNow, caCert, validity)
+
+			response := &authenticationv1alpha1.AdminKubeconfigRequest{
+				Status: authenticationv1alpha1.AdminKubeconfigRequestStatus{
+					Kubeconfig:          []byte(kubeconfig),
+					ExpirationTimestamp: metav1.Time{Time: expirationTime},
+				},
+			}
+			restClient = &fake.RESTClient{
+				GroupVersion: struct {
+					Group   string
+					Version string
+				}{Group: "", Version: "v1"},
+				NegotiatedSerializer: resource.UnstructuredPlusDefaultContentConfig().NegotiatedSerializer,
+				Client: fake.CreateHTTPClient(func(req *http.Request) (*http.Response, error) {
+					switch req.Method {
+					case "POST":
+						switch req.URL.Path {
+						case "/namespaces/garden-myproject/shoots/mycluster/adminkubeconfig":
+							bodyAkr := &authenticationv1alpha1.AdminKubeconfigRequest{}
+							BodyIntoObj(codec, req.Body, bodyAkr)
+							wantExpirationSeconds := int64(42)
+							Expect(bodyAkr.Spec.ExpirationSeconds).To(Equal(&wantExpirationSeconds))
+
+							return &http.Response{StatusCode: http.StatusOK, Header: DefaultHeader(), Body: ObjBody(codec, response)}, nil
+						default:
+							Fail(fmt.Sprintf("unexpected request: %#v\n%#v", req.URL, req))
+							return nil, nil
+						}
+					default:
+						Fail(fmt.Sprintf("unexpected request: %s %#v\n%#v", req.Method, req.URL, req))
+						return nil, nil
+					}
+				}),
+			}
+		})
 
 		Context("KUBERNETES_EXEC_INFO is set", func() {
 			BeforeEach(func() {
 				execInfo, err := json.Marshal(ec)
 				Expect(err).ToNot(HaveOccurred())
 				os.Setenv("KUBERNETES_EXEC_INFO", string(execInfo))
-
-				key = certificatecache.Key{
-					ShootServer:           "https://api.mycluster.myproject.foo",
-					ShootName:             "mycluster",
-					ShootNamespace:        "garden-myproject",
-					GardenClusterIdentity: "landscape-dev",
-				}
-
-				f = &TestFactory{
-					gardenClusterIdentity: "landscape-dev",
-					homeDirectoy:          "/Users/foo",
-				}
-
-				caCert = generateCaCert()
-				clientCert = generateClientCert(fakeNow, caCert, validity)
 			})
 
 			AfterEach(func() {
@@ -245,26 +309,15 @@ users:
 			})
 
 			It("Should return cached client certificate", func() {
-				cmd := c.NewCmdGetClientCertificate(f, ioStreams)
-
-				opts := c.NewGetClientCertificateOptions(ioStreams)
-				opts.Clock = newFakeClock()
-
-				err := opts.Complete(f, cmd, []string{})
-				Expect(err).ToNot(HaveOccurred())
-
-				err = opts.Validate()
-				Expect(err).ToNot(HaveOccurred())
-
-				fStore := newFakeStore()
-				opts.CertificateCacheStore = &fStore
+				// a rest client is not needed for this test
+				f.restClient = nil
 
 				By("Ensure valid certificate is found in certificate cache")
 				cachedCertificateSet := certificatecache.CertificateSet{
 					ClientCertificateData: clientCert.CertificatePEM,
 					ClientKeyData:         clientCert.PrivateKeyPEM,
 				}
-				fStore.inMemory[key] = struct {
+				f.store.inMemory[storeKey] = struct {
 					certificateSet *certificatecache.CertificateSet
 					err            error
 				}{
@@ -272,11 +325,8 @@ users:
 					err:            nil,
 				}
 
-				ctx, cancel := context.WithTimeout(context.Background(), validity)
-				defer cancel()
-
-				err = opts.RunGetClientCertificate(ctx)
-				Expect(err).ToNot(HaveOccurred())
+				By("executing the command")
+				Expect(cmd.Execute()).To(Succeed())
 
 				By("Expecting cached certificate to be printed to out buffer")
 				Expect(out.String()).To(Equal(fmt.Sprintf(
@@ -291,63 +341,13 @@ users:
 
 			It("Should fetch the client certificate", func() {
 				By("By using fake RESTClient")
-				response := &authenticationv1alpha1.AdminKubeconfigRequest{
-					Status: authenticationv1alpha1.AdminKubeconfigRequestStatus{
-						Kubeconfig:          []byte(kubeconfig),
-						ExpirationTimestamp: metav1.Time{Time: expirationTime},
-					},
-				}
-				restClient := &fake.RESTClient{
-					GroupVersion: struct {
-						Group   string
-						Version string
-					}{Group: "", Version: "v1"},
-					NegotiatedSerializer: resource.UnstructuredPlusDefaultContentConfig().NegotiatedSerializer,
-					Client: fake.CreateHTTPClient(func(req *http.Request) (*http.Response, error) {
-						switch req.Method {
-						case "POST":
-							switch req.URL.Path {
-							case "/namespaces/garden-myproject/shoots/mycluster/adminkubeconfig":
-								bodyAkr := &authenticationv1alpha1.AdminKubeconfigRequest{}
-								BodyIntoObj(codec, req.Body, bodyAkr)
-								wantExpirationSeconds := int64(42)
-								Expect(bodyAkr.Spec.ExpirationSeconds).To(Equal(&wantExpirationSeconds))
-
-								return &http.Response{StatusCode: http.StatusOK, Header: DefaultHeader(), Body: ObjBody(codec, response)}, nil
-							default:
-								Fail(fmt.Sprintf("unexpected request: %#v\n%#v", req.URL, req))
-								return nil, nil
-							}
-						default:
-							Fail(fmt.Sprintf("unexpected request: %s %#v\n%#v", req.Method, req.URL, req))
-							return nil, nil
-						}
-					}),
-				}
 				f.restClient = restClient
 
-				cmd := c.NewCmdGetClientCertificate(f, ioStreams)
+				By("executing the command")
+				Expect(cmd.ParseFlags([]string{"--expiration-seconds=42"})).To(Succeed())
+				Expect(cmd.Execute()).To(Succeed())
 
-				opts := c.NewGetClientCertificateOptions(ioStreams)
-				opts.Clock = newFakeClock()
-
-				err := opts.Complete(f, cmd, []string{})
-				Expect(err).ToNot(HaveOccurred())
-
-				err = opts.Validate()
-				Expect(err).ToNot(HaveOccurred())
-
-				fStore := newFakeStore()
-				opts.CertificateCacheStore = &fStore
-				opts.AdminKubeconfigExpirationSeconds = 42
-
-				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-				defer cancel()
-
-				err = opts.RunGetClientCertificate(ctx)
-				Expect(err).ToNot(HaveOccurred())
-
-				By("Expecting no certificate to be printed to out buffer")
+				By("Expecting certificate to be printed to out buffer")
 				Expect(out.String()).To(Equal(fmt.Sprintf(
 					`{"kind":"ExecCredential","apiVersion":"client.authentication.k8s.io/v1beta1","spec":{},"status":{"expirationTimestamp":%q,"clientCertificateData":%q,"clientKeyData":%q}}
 `,
@@ -362,7 +362,89 @@ users:
 					ClientCertificateData: []byte("foo"),
 					ClientKeyData:         []byte("bar"),
 				}
-				Expect(fStore.inMemory[key]).To(Equal(struct {
+				Expect(f.store.inMemory[storeKey]).To(Equal(struct {
+					certificateSet *certificatecache.CertificateSet
+					err            error
+				}{
+					certificateSet: &wantCertificateSet,
+					err:            nil,
+				}))
+			})
+		})
+
+		Context("accepting arguments only - support for kubectl versions < 1.20.0", func() {
+			BeforeEach(func() {
+				os.Unsetenv("KUBERNETES_EXEC_INFO")
+				storeKey.ShootServer = ""
+			})
+
+			It("Should return cached client certificate", func() {
+				// a rest client is not needed for this test
+				f.restClient = nil
+
+				By("Ensure valid certificate is found in certificate cache")
+				cachedCertificateSet := certificatecache.CertificateSet{
+					ClientCertificateData: clientCert.CertificatePEM,
+					ClientKeyData:         clientCert.PrivateKeyPEM,
+				}
+				f.store.inMemory[storeKey] = struct {
+					certificateSet *certificatecache.CertificateSet
+					err            error
+				}{
+					certificateSet: &cachedCertificateSet,
+					err:            nil,
+				}
+
+				By("executing the command")
+				args := []string{
+					"--garden-cluster-identity=landscape-dev",
+					"--name=mycluster",
+					"--namespace=garden-myproject",
+				}
+				Expect(cmd.ParseFlags(args)).To(Succeed())
+				Expect(cmd.Execute()).To(Succeed())
+
+				By("Expecting cached certificate to be printed to out buffer")
+				Expect(out.String()).To(Equal(fmt.Sprintf(
+					`{"kind":"ExecCredential","apiVersion":"client.authentication.k8s.io/v1beta1","spec":{},"status":{"expirationTimestamp":%q,"clientCertificateData":%q,"clientKeyData":%q}}
+`,
+					expirationTime.Format(time.RFC3339),
+					string(clientCert.CertificatePEM),
+					string(clientCert.PrivateKeyPEM),
+				)))
+				Expect(errOut.String()).To(BeEmpty())
+			})
+
+			It("Should fetch the client certificate", func() {
+				By("By using fake RESTClient")
+				f.restClient = restClient
+
+				By("executing the command")
+				args := []string{
+					"--garden-cluster-identity=landscape-dev",
+					"--name=mycluster",
+					"--namespace=garden-myproject",
+					"--expiration-seconds=42",
+				}
+				Expect(cmd.ParseFlags(args)).To(Succeed())
+				Expect(cmd.Execute()).To(Succeed())
+
+				By("Expecting certificate to be printed to out buffer")
+				Expect(out.String()).To(Equal(fmt.Sprintf(
+					`{"kind":"ExecCredential","apiVersion":"client.authentication.k8s.io/v1beta1","spec":{},"status":{"expirationTimestamp":%q,"clientCertificateData":%q,"clientKeyData":%q}}
+`,
+					expirationTime.Format(time.RFC3339),
+					"foo",
+					"bar",
+				)))
+				Expect(errOut.String()).To(BeEmpty())
+
+				By("Expecting certificate to be stored in cache")
+				wantCertificateSet := certificatecache.CertificateSet{
+					ClientCertificateData: []byte("foo"),
+					ClientKeyData:         []byte("bar"),
+				}
+				Expect(f.store.inMemory[storeKey]).To(Equal(struct {
 					certificateSet *certificatecache.CertificateSet
 					err            error
 				}{
@@ -420,9 +502,17 @@ func generateCaCert() *secrets.Certificate {
 }
 
 type TestFactory struct {
+	clock                 *fakeClock
 	restClient            rest.Interface
 	gardenClusterIdentity string
 	homeDirectoy          string
+	store                 *fakeStore
+}
+
+var _ util.Factory = &TestFactory{}
+
+func (t *TestFactory) Clock() util.Clock {
+	return t.clock
 }
 
 func (t *TestFactory) HomeDir() string {
@@ -432,6 +522,10 @@ func (t *TestFactory) HomeDir() string {
 func (t *TestFactory) RESTClient(gardenClusterIdentity string) (rest.Interface, error) {
 	Expect(t.gardenClusterIdentity).To(Equal(gardenClusterIdentity))
 	return t.restClient, nil
+}
+
+func (t *TestFactory) CertificateStore(_ string) store.Interface {
+	return t.store
 }
 
 // fakeClock implements Clock interface
@@ -454,8 +548,8 @@ func fakeNow() time.Time {
 	return t
 }
 
-func newFakeStore() fakeStore {
-	return fakeStore{
+func newFakeStore() *fakeStore {
+	return &fakeStore{
 		inMemory: make(map[certificatecache.Key]struct {
 			certificateSet *certificatecache.CertificateSet
 			err            error
@@ -470,6 +564,8 @@ type fakeStore struct {
 		err            error
 	}
 }
+
+var _ store.Interface = &fakeStore{}
 
 func (s *fakeStore) FindByKey(key certificatecache.Key) (*certificatecache.CertificateSet, error) {
 	res, ok := s.inMemory[key]
