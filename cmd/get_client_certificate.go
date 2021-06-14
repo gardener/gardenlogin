@@ -79,7 +79,7 @@ type GetClientCertificateOptions struct {
 
 	// ShootCluster holds the data of the shoot kubernetes cluster.
 	// This field is not set for kubectl versions older than v1.20.0 and starting with v1.11.0 as the KUBERNETES_EXEC_INFO environment variable is not set
-	// If not nil, the Server Server and CertificateAuthorityData must match with what is returned in the kubeconfig of the "shoots/adminkubeconfig" subresource.
+	// If not nil, the Server and CertificateAuthorityData must match with what is returned in the kubeconfig of the "shoots/adminkubeconfig" subresource.
 	// If nil the cluster of the current context from the kubeconfig returned by the "shoots/adminkubeconfig" subresource is used.
 	// TODO once we drop support for kubectl versions older than v1.20.0, this field should be made required
 	// +optional

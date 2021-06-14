@@ -35,35 +35,35 @@ apiVersion: v1
 kind: Config
 clusters:
 - name: shoot--myproject--mycluster
- cluster:
-   server: https://api.mycluster.myproject.example.com
-   certificate-authority-data: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCi4uLgotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0t
-   extensions:
-   - name: client.authentication.k8s.io/exec
-    extension:
-      shootRef:
-        namespace: garden-myproject
-        name: mycluster
-      gardenClusterIdentity: landscape-dev # must match with the garden cluster identity from the config
+  cluster:
+    server: https://api.mycluster.myproject.example.com
+    certificate-authority-data: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCi4uLgotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0t
+    extensions:
+    - name: client.authentication.k8s.io/exec
+      extension:
+        shootRef:
+          namespace: garden-myproject
+          name: mycluster
+        gardenClusterIdentity: landscape-dev # must match with the garden cluster identity from the config
 contexts:
 - name: shoot--myproject--mycluster
- context:
-   cluster: shoot--myproject--mycluster
-   user: shoot--myproject--mycluster
+  context:
+    cluster: shoot--myproject--mycluster
+    user: shoot--myproject--mycluster
 current-context: shoot--myproject--mycluster
 users:
 - name: shoot--myproject--mycluster
- user:
-   exec:
-     apiVersion: client.authentication.k8s.io/v1beta1
-     provideClusterInfo: true
-     command: kubectl
-     args:
-       - garden-login
-       - get-client-certificate
+  user:
+    exec:
+      apiVersion: client.authentication.k8s.io/v1beta1
+      provideClusterInfo: true
+      command: kubectl
+      args:
+      - garden-login
+      - get-client-certificate
 ```
 
-An example `kubeconfig` supporting `kubectl` version `v1.11.0` onwards can be found under [example/02-kubeconfig.yaml](example/02-kubeconfig.yaml).
+An example `kubeconfig` supporting `kubectl` version `v1.11.0` onwards can be found under [example/02-kubeconfig.yaml](example/01-kubeconfig-legacy.yaml).
 
 ## Authentication Flow
 The following describes the flow to authenticate against a `Shoot` cluster as cluster admin:
