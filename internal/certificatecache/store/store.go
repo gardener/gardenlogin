@@ -3,6 +3,7 @@ SPDX-FileCopyrightText: 2021 SAP SE or an SAP affiliate company and Gardener con
 
 SPDX-License-Identifier: Apache-2.0
 */
+
 package store
 
 import (
@@ -36,6 +37,7 @@ type Store struct {
 	Dir string
 }
 
+// FindByKey returns the certificatecache.CertificateSet for a given key
 func (s *Store) FindByKey(key certificatecache.Key) (*certificatecache.CertificateSet, error) {
 	filename, err := generateFilename(key)
 	if err != nil {
@@ -64,6 +66,7 @@ func (s *Store) FindByKey(key certificatecache.Key) (*certificatecache.Certifica
 	}, nil
 }
 
+// Save stores the given certificatecache.CertificateSet for the given key
 func (s *Store) Save(key certificatecache.Key, certificateSet certificatecache.CertificateSet) error {
 	if err := os.MkdirAll(s.Dir, 0700); err != nil {
 		return err

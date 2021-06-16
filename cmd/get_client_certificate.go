@@ -124,11 +124,11 @@ func NewGetClientCertificateOptions(ioStreams genericclioptions.IOStreams) *GetC
 }
 
 const (
-	FlagGardenClusterIdentity = "garden-cluster-identity"
-	FlagName                  = "name"
-	FlagNamespace             = "namespace"
-	FlagCertificateCacheDir   = "certificate-cache-dir"
-	FlagExpirationSeconds     = "expiration-seconds"
+	flagGardenClusterIdentity = "garden-cluster-identity"
+	flagName                  = "name"
+	flagNamespace             = "namespace"
+	flagCertificateCacheDir   = "certificate-cache-dir"
+	flagExpirationSeconds     = "expiration-seconds"
 )
 
 // NewCmdGetClientCertificate returns the get-client-certificate cobra.Command
@@ -150,11 +150,11 @@ func NewCmdGetClientCertificate(f util.Factory, ioStreams genericclioptions.IOSt
 		},
 	}
 
-	cmd.Flags().StringVar(&o.ShootRef.Name, FlagName, "", "Name of the shoot cluster")
-	cmd.Flags().StringVar(&o.ShootRef.Namespace, FlagNamespace, "", "Namespace of the shoot cluster")
-	cmd.Flags().StringVar(&o.GardenClusterIdentity, FlagGardenClusterIdentity, "", "Cluster identifier of the garden cluster")
-	cmd.Flags().StringVar(&o.CertificateCacheDir, FlagCertificateCacheDir, filepath.Join(f.HomeDir(), ".kube", "cache", "gardenlogin"), "Directory of the certificate cache")
-	cmd.Flags().Int64Var(&o.AdminKubeconfigExpirationSeconds, FlagExpirationSeconds, 900, "Validity duration of the requested credential")
+	cmd.Flags().StringVar(&o.ShootRef.Name, flagName, "", "Name of the shoot cluster")
+	cmd.Flags().StringVar(&o.ShootRef.Namespace, flagNamespace, "", "Namespace of the shoot cluster")
+	cmd.Flags().StringVar(&o.GardenClusterIdentity, flagGardenClusterIdentity, "", "Cluster identifier of the garden cluster")
+	cmd.Flags().StringVar(&o.CertificateCacheDir, flagCertificateCacheDir, filepath.Join(f.HomeDir(), ".kube", "cache", "gardenlogin"), "Directory of the certificate cache")
+	cmd.Flags().Int64Var(&o.AdminKubeconfigExpirationSeconds, flagExpirationSeconds, 900, "Validity duration of the requested credential")
 
 	return cmd
 }

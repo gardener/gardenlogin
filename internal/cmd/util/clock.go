@@ -17,6 +17,7 @@ type Clock interface {
 // RealClock implements Clock interface
 type RealClock struct{}
 
+// Now returns the current time
 func (RealClock) Now() time.Time {
 	return time.Now()
 }
