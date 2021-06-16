@@ -6,7 +6,7 @@
 
 PACKAGE_PATH="${1:-k8s.io/component-base}"
 VERSION_PATH="${2:-$(dirname $0)/../VERSION}"
-PROGRAM_NAME="${3:-garden-login}"
+PROGRAM_NAME="${3:-gardenlogin}"
 VERSION_VERSIONFILE="$(cat "$VERSION_PATH")"
 VERSION="${EFFECTIVE_VERSION:-$VERSION_VERSIONFILE}"
 

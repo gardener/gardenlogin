@@ -7,7 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package cmd_test
 
 import (
-	"github.com/gardener/garden-login/cmd"
+	"github.com/gardener/gardenlogin/cmd"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"

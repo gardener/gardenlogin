@@ -6,7 +6,7 @@ SPDX-License-Identifier: Apache-2.0
 package main
 
 import (
-	"github.com/gardener/garden-login/cmd"
+	"github.com/gardener/gardenlogin/cmd"
 )
 
 func main() {

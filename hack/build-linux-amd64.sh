@@ -29,7 +29,7 @@ if [[ -z "${LD_FLAGS}" ]]; then
 fi
 ###############################################################################
 
-out_file="${BINARY_PATH}"/linux-amd64/garden-login_linux_amd64
+out_file="${BINARY_PATH}"/linux-amd64/gardenlogin_linux_amd64
 
 echo "building for linux-amd64: ${out_file}"
 CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GO111MODULE=on go build \

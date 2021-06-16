@@ -39,7 +39,7 @@ func NewVersionCmd() *cobra.Command {
 	o := NewVersionOptions(ioStreams)
 	cmd := &cobra.Command{
 		Use:   "version",
-		Short: "Print the garden-login version information",
+		Short: "Print the gardenlogin version information",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := o.Validate(); err != nil {
 				return err

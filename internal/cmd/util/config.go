@@ -8,7 +8,7 @@ package util
 
 import "fmt"
 
-type GardenLoginConfig struct {
+type GardenloginConfig struct {
 	GardenClusters []GardenClusterConfig
 }
 
@@ -17,7 +17,7 @@ type GardenClusterConfig struct {
 	Kubeconfig      string
 }
 
-func (c *GardenLoginConfig) GetClusterConfigForClusterIdentity(clusterIdentity string) (*GardenClusterConfig, error) {
+func (c *GardenloginConfig) GetClusterConfigForClusterIdentity(clusterIdentity string) (*GardenClusterConfig, error) {
 	gardenClusters := c.GardenClusters
 	for _, cluster := range gardenClusters {
 		if cluster.ClusterIdentity == clusterIdentity {

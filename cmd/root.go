@@ -26,15 +26,15 @@ const (
 	envConfigName    = envPrefix + "_CONFIG_NAME"
 
 	gardenHomeFolder = ".garden"
-	configName       = "garden-login"
+	configName       = "gardenlogin"
 )
 
 var cfgFile string
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:   "garden-login",
-	Short: "garden-login is a kubectl credential plugin for shoot cluster admin authentication",
+	Use:   "gardenlogin",
+	Short: "gardenlogin is a kubectl credential plugin for shoot cluster admin authentication",
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -65,7 +65,7 @@ func initConfig() {
 
 		configPath := filepath.Join(home, gardenHomeFolder)
 
-		// Search config in $HOME/.garden or in path provided with the env variable GL_HOME with name ".garden-login" (without extension) or name from env variable GL_CONFIG_NAME.
+		// Search config in $HOME/.garden or in path provided with the env variable GL_HOME with name ".gardenlogin" (without extension) or name from env variable GL_CONFIG_NAME.
 		envHomeDir, err := homedir.Expand(os.Getenv(envGardenHomeDir))
 		cobra.CheckErr(err)
 

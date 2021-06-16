@@ -16,9 +16,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/gardener/garden-login/internal/certificatecache"
-	"github.com/gardener/garden-login/internal/certificatecache/store"
-	"github.com/gardener/garden-login/internal/cmd/util"
+	"github.com/gardener/gardenlogin/internal/certificatecache"
+	"github.com/gardener/gardenlogin/internal/certificatecache/store"
+	"github.com/gardener/gardenlogin/internal/cmd/util"
 
 	authenticationv1alpha1 "github.com/gardener/gardener/pkg/apis/authentication/v1alpha1"
 	gardenscheme "github.com/gardener/gardener/pkg/client/core/clientset/versioned/scheme"
@@ -48,7 +48,7 @@ var (
 )
 
 // ExecPluginConfig contains additional data which is needed for the
-// garden-login plugin to authenticate against the shoot cluster
+// gardenlogin plugin to authenticate against the shoot cluster
 type ExecPluginConfig struct {
 	// ShootRef references the shoot cluster
 	ShootRef ShootRef `json:"shootRef"`
@@ -153,7 +153,7 @@ func NewCmdGetClientCertificate(f util.Factory, ioStreams genericclioptions.IOSt
 	cmd.Flags().StringVar(&o.ShootRef.Name, FlagName, "", "Name of the shoot cluster")
 	cmd.Flags().StringVar(&o.ShootRef.Namespace, FlagNamespace, "", "Namespace of the shoot cluster")
 	cmd.Flags().StringVar(&o.GardenClusterIdentity, FlagGardenClusterIdentity, "", "Cluster identifier of the garden cluster")
-	cmd.Flags().StringVar(&o.CertificateCacheDir, FlagCertificateCacheDir, filepath.Join(f.HomeDir(), ".kube", "cache", "garden-login"), "Directory of the certificate cache")
+	cmd.Flags().StringVar(&o.CertificateCacheDir, FlagCertificateCacheDir, filepath.Join(f.HomeDir(), ".kube", "cache", "gardenlogin"), "Directory of the certificate cache")
 	cmd.Flags().Int64Var(&o.AdminKubeconfigExpirationSeconds, FlagExpirationSeconds, 900, "Validity duration of the requested credential")
 
 	return cmd

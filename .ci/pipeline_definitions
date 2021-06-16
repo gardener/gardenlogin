@@ -1,4 +1,4 @@
-garden-login:
+gardenlogin:
   template: 'default'
   base_definition:
     repo: ~

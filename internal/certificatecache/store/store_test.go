@@ -11,7 +11,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/gardener/garden-login/internal/certificatecache"
+	"github.com/gardener/gardenlogin/internal/certificatecache"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"

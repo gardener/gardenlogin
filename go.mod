@@ -1,4 +1,4 @@
-module github.com/gardener/garden-login
+module github.com/gardener/gardenlogin
 
 go 1.16
 

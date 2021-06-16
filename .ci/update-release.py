@@ -18,7 +18,7 @@ OUTPUT_FILE_BINARIES = [
     ),
     Binary(
         path='linux-amd64',
-        name='garden-login_linux_amd64'
+        name='gardenlogin_linux_amd64'
     ),
 ]
 VERSION_FILE_NAME='VERSION'

@@ -13,7 +13,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/gardener/garden-login/internal/certificatecache"
+	"github.com/gardener/gardenlogin/internal/certificatecache"
 )
 
 // Interface defines functions to read and write to the certificate store

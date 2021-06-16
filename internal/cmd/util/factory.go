@@ -7,7 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package util
 
 import (
-	"github.com/gardener/garden-login/internal/certificatecache/store"
+	"github.com/gardener/gardenlogin/internal/certificatecache/store"
 
 	gardencoreclientset "github.com/gardener/gardener/pkg/client/core/clientset/versioned"
 	"github.com/mitchellh/go-homedir"
@@ -43,7 +43,7 @@ func (f *FactoryImpl) Clock() Clock {
 }
 
 func (f *FactoryImpl) RESTClient(gardenClusterIdentity string) (rest.Interface, error) {
-	config := &GardenLoginConfig{}
+	config := &GardenloginConfig{}
 	if err := viper.Unmarshal(config); err != nil {
 		return nil, err
 	}

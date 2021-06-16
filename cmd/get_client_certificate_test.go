@@ -18,10 +18,10 @@ import (
 	"os"
 	"time"
 
-	c "github.com/gardener/garden-login/cmd"
-	"github.com/gardener/garden-login/internal/certificatecache"
-	"github.com/gardener/garden-login/internal/certificatecache/store"
-	"github.com/gardener/garden-login/internal/cmd/util"
+	c "github.com/gardener/gardenlogin/cmd"
+	"github.com/gardener/gardenlogin/internal/certificatecache"
+	"github.com/gardener/gardenlogin/internal/certificatecache/store"
+	"github.com/gardener/gardenlogin/internal/cmd/util"
 
 	"github.com/gardener/gardener/pkg/apis/authentication"
 	authenticationv1alpha1 "github.com/gardener/gardener/pkg/apis/authentication/v1alpha1"

@@ -1,7 +1,7 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
-Upstream-Name: Gardener garden-login
+Upstream-Name: Gardener gardenlogin
 Upstream-Contact: The Gardener project <gardener@googlegroups.com>
-Source: https://github.com/gardener/garden-login
+Source: https://github.com/gardener/gardenlogin
 
 # --------------------------------------------------
 # source code

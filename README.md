@@ -1,17 +1,17 @@
-# Garden-Login
+# Gardenlogin
 
 [![reuse compliant](https://reuse.software/badge/reuse-compliant.svg)](https://reuse.software/)
 
-`garden-login`s `get-client-certificate` command can be used as a `kubectl` [credential plugin](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#client-go-credential-plugins). It fetches the `cluster-admin` credentials from the API introduced with [GEP-16](https://github.com/gardener/gardener/blob/master/docs/proposals/16-adminkubeconfig-subresource.md). See more details under [Authentication Flow](#authentication-flow)
+`gardenlogin`s `get-client-certificate` command can be used as a `kubectl` [credential plugin](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#client-go-credential-plugins). It fetches the `cluster-admin` credentials from the API introduced with [GEP-16](https://github.com/gardener/gardener/blob/master/docs/proposals/16-adminkubeconfig-subresource.md). See more details under [Authentication Flow](#authentication-flow)
 
 With GEP-16, users are able to generate kubeconfigs for `Shoot` clusters with short-lived certificates, to access the cluster as `cluster-admin`.
 
 
-## Configure garden-login
-`garden-login` requires a configuration file. The default location is in `~/.garden/garden-login.yaml`.
+## Configure gardenlogin
+`gardenlogin` requires a configuration file. The default location is in `~/.garden/gardenlogin.yaml`.
 ### Config path overwrite:
-- The `garden-login` config path can be overwritten with the environment variable `GL_HOME`.
-- The `garden-login` config name can be overwritten with the environment variable `GL_CONFIG_NAME`.
+- The `gardenlogin` config path can be overwritten with the environment variable `GL_HOME`.
+- The `gardenlogin` config name can be overwritten with the environment variable `GL_CONFIG_NAME`.
 
 ```bash
 export GL_HOME=/alternate/garden/config/dir
@@ -59,7 +59,7 @@ users:
       provideClusterInfo: true
       command: kubectl
       args:
-      - garden-login
+      - gardenlogin
       - get-client-certificate
 ```
 
@@ -74,8 +74,8 @@ The following describes the flow to authenticate against a `Shoot` cluster as cl
     - or using the API to fetch the secret (TODO)
 2. `kubectl` is then configured to use the downloaded `kubeconfig` for the shoot cluster
 3. A `kubectl` command is executed, e.g. `kubectl get namespaces`
-4. The `garden-login` credential plugin is called to print the `ExecCredential` to `stdout`, see [input and output formats](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#input-and-output-formats) for more information.
+4. The `gardenlogin` credential plugin is called to print the `ExecCredential` to `stdout`, see [input and output formats](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#input-and-output-formats) for more information.
 5. In case a valid credential is already cached locally it is returned directly. Otherwise, a new credential has to be requested
-6. According to the garden cluster identity under `clusters[].cluster.extensions[].extension.gardenClusterIdentity`, the `garden-login` plugin searches a matching garden cluster in its configuration file (`gardenClusters[].clusterIdentity`) to get the `kubeconfig` of the garden cluster
-7. The `garden-login` plugin calls `shoots/adminkubeconfig` resource with an `AdminKubeConfigRequest` for the `Shoot` cluster referenced under `clusters[].cluster.extensions[].extension.shootRef`
-8. The `garden-login` plugin takes the x509 client certificate from the returned `AdminKubeConfigRequest` under `status.kubeconfig` and prints it as `ExecCredential` to `stdout`
+6. According to the garden cluster identity under `clusters[].cluster.extensions[].extension.gardenClusterIdentity`, the `gardenlogin` plugin searches a matching garden cluster in its configuration file (`gardenClusters[].clusterIdentity`) to get the `kubeconfig` of the garden cluster
+7. The `gardenlogin` plugin calls `shoots/adminkubeconfig` resource with an `AdminKubeConfigRequest` for the `Shoot` cluster referenced under `clusters[].cluster.extensions[].extension.shootRef`
+8. The `gardenlogin` plugin takes the x509 client certificate from the returned `AdminKubeConfigRequest` under `status.kubeconfig` and prints it as `ExecCredential` to `stdout`
