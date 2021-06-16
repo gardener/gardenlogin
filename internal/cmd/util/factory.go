@@ -38,10 +38,12 @@ type FactoryImpl struct {
 
 var _ Factory = &FactoryImpl{}
 
+// Clock returns a clock that provides access to the current time.
 func (f *FactoryImpl) Clock() Clock {
 	return &RealClock{}
 }
 
+// RESTClient returns the rest client for the garden cluster, identified by the garden cluster identity
 func (f *FactoryImpl) RESTClient(gardenClusterIdentity string) (rest.Interface, error) {
 	config := &GardenloginConfig{}
 	if err := viper.Unmarshal(config); err != nil {
@@ -73,10 +75,12 @@ func (f *FactoryImpl) RESTClient(gardenClusterIdentity string) (rest.Interface, 
 	return gardenCore.CoreV1beta1().RESTClient(), nil
 }
 
+// HomeDir returns the home directory for the executing user.
 func (f *FactoryImpl) HomeDir() string {
 	return f.HomeDirectory
 }
 
+// CertificateStore returns a certificate store
 func (f *FactoryImpl) CertificateStore(dir string) store.Interface {
 	return &store.Store{Dir: dir}
 }
