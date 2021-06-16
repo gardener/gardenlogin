@@ -7,9 +7,9 @@
 With GEP-16, users are able to generate kubeconfigs for `Shoot` clusters with short-lived certificates, to access the cluster as `cluster-admin`.
 
 
-## Configure gardenlogin
+## Configure Gardenlogin
 `gardenlogin` requires a configuration file. The default location is in `~/.garden/gardenlogin.yaml`.
-### Config path overwrite:
+### Config Path Overwrite:
 - The `gardenlogin` config path can be overwritten with the environment variable `GL_HOME`.
 - The `gardenlogin` config name can be overwritten with the environment variable `GL_CONFIG_NAME`.
 
@@ -19,7 +19,7 @@ export GL_CONFIG_NAME=myconfig # without extension!
 # config is expected to be under /alternate/garden/config/dir/myconfig.yaml
 ```
 
-### Example config:
+### Example Config:
 ```yaml
 gardenClusters:
 - clusterIdentity: landscape-dev # Unique identifier of the garden cluster. See cluster-identity ConfigMap in kube-system namespace of the garden cluster
