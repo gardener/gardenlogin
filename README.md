@@ -74,7 +74,7 @@ The following describes the flow to authenticate against a `Shoot` cluster as cl
 1. The user would either download the `Shoot` cluster `kubeconfig`
     - using the `gardener/dashboard` (TODO)
     - by targeting the cluster with `gardenctl` (TODO)
-    - or using the API to fetch the secret (TODO)
+    - or using the API to fetch the `<shoot_name>.kubeconfig` configmap
 2. `kubectl` is then configured to use the downloaded `kubeconfig` for the shoot cluster
 3. A `kubectl` command is executed, e.g. `kubectl get namespaces`
 4. The `gardenlogin` credential plugin is called to print the `ExecCredential` to `stdout`, see [input and output formats](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#input-and-output-formats) for more information.
