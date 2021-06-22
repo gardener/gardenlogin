@@ -1,0 +1,34 @@
+name: gardenlogin-updater
+
+on:
+  release:
+    types:
+      - published
+jobs:
+  update_gardenlogin_in_homebrew_tap:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Build the binary-files
+        id: build_binary_files
+        run: |
+          sudo apt-get update
+          sudo apt-get install make -y
+          make build
+          echo ::set-output name=latest_release_filtered_tag::${GITHUB_REF##*/}
+      - name: Upload binaries to release
+        uses: AButler/upload-release-assets@v2.0
+        with:
+          files: 'bin/darwin-amd64/gardenlogin_darwin_amd64;bin/linux-amd64/gardenlogin_linux_amd64'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          release-tag: ${{ steps.build_binary_files.outputs.latest_release_filtered_tag }}
+      - name: Send update with latest versions to gardener/homebrew-tap
+        run: |
+          darwin_sha256sum=$(sha256sum bin/darwin-amd64/gardenlogin_darwin_amd64 | awk '{print $1}')
+          linux_sha256sum=$(sha256sum bin/linux-amd64/gardenlogin_linux_amd64 | awk '{print $1}')
+          data='{"event_type": "update", "client_payload": { "component": "gardenlogin", "tag": "'"${{ steps.build_binary_files.outputs.latest_release_filtered_tag }}"'", "darwin_sha": "'"$darwin_sha256sum"'", "linux_sha": "'"$linux_sha256sum"'"}}'
+          echo "${data}"
+          curl -X POST https://api.github.com/repos/gardener/homebrew-tap/dispatches \
+          -H 'Accept: application/vnd.github.everest-preview+json' \
+          -u "${{ secrets.ACCESS_TOKEN }}" \
+          --data "${data}"
