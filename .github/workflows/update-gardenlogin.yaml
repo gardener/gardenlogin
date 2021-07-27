@@ -19,7 +19,7 @@ jobs:
       - name: Upload binaries to release
         uses: AButler/upload-release-assets@v2.0
         with:
-          files: 'bin/darwin-amd64/gardenlogin_darwin_amd64;bin/linux-amd64/gardenlogin_linux_amd64'
+          files: 'bin/darwin-amd64/gardenlogin_darwin_amd64;bin/linux-amd64/gardenlogin_linux_amd64;bin/windows-amd64/gardenlogin_windows_amd64.exe'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           release-tag: ${{ steps.build_binary_files.outputs.latest_release_filtered_tag }}
       - name: Send update with latest versions to gardener/homebrew-tap
