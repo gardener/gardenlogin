@@ -35,7 +35,7 @@ jobs:
           linux_sha256sum=$(sha256sum bin/linux-amd64/gardenlogin_linux_amd64 | awk '{print $1}')
           data='{"event_type": "update", "client_payload": { "component": "gardenlogin", "tag": "'"${{ steps.build_binary_files.outputs.latest_release_filtered_tag }}"'", "darwin_sha": "'"$darwin_sha256sum"'", "linux_sha": "'"$linux_sha256sum"'"}}'
           echo "${data}"
-          curl -X POST https://api.github.com/repos/grolu/homebrew-tap/actions/workflows/update-tags.yml/dispatches \
+          curl -X POST https://api.github.com/repos/grolu/homebrew-tap/dispatches \
           -H 'Accept: application/vnd.github.everest-preview+json' \
           -H "Authorization: Token ${{ steps.gardener-github-workflows.outputs.token }}" \
           --data "${data}"
