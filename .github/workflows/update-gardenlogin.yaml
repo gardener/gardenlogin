@@ -22,6 +22,13 @@ jobs:
           files: 'bin/darwin-amd64/gardenlogin_darwin_amd64;bin/linux-amd64/gardenlogin_linux_amd64'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           release-tag: ${{ steps.build_binary_files.outputs.latest_release_filtered_tag }}
+      - name: Get token for gardener-github-pkg-mngr app
+        id: gardener-github-workflows
+        # getsentry/action-github-app-token@v1, but the exact commit
+        uses: getsentry/action-github-app-token@8f656f2b31c7aaef91ba5cfdbe308d2a4d72e4f4
+        with:
+          app_id: ${{ secrets.GARDENER_GITHUB_WORKFLOW_PKG_MNGR_APP_ID }}
+          private_key: ${{ secrets.GARDENER_GITHUB_WORKFLOW_PKG_MNGR_APP_PRIVATE_KEY }}
       - name: Send update with latest versions to gardener/homebrew-tap
         run: |
           darwin_sha256sum=$(sha256sum bin/darwin-amd64/gardenlogin_darwin_amd64 | awk '{print $1}')
@@ -30,5 +37,5 @@ jobs:
           echo "${data}"
           curl -X POST https://api.github.com/repos/gardener/homebrew-tap/dispatches \
           -H 'Accept: application/vnd.github.everest-preview+json' \
-          -u "${{ secrets.ACCESS_TOKEN }}" \
+          -H "Authorization: Token ${{ steps.gardener-github-workflows.outputs.token }}" \
           --data "${data}"
