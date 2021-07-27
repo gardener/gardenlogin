@@ -24,8 +24,7 @@ jobs:
           release-tag: ${{ steps.build_binary_files.outputs.latest_release_filtered_tag }}
       - name: Get token for gardener-github-pkg-mngr app
         id: gardener-github-workflows
-        # getsentry/action-github-app-token@v1, but the exact commit
-        uses: getsentry/action-github-app-token@8f656f2b31c7aaef91ba5cfdbe308d2a4d72e4f4
+        uses: getsentry/action-github-app-token@8f656f2b31c7aaef91ba5cfdbe308d2a4d72e4f4 # pin@v1
         with:
           app_id: ${{ secrets.GARDENER_GITHUB_WORKFLOW_PKG_MNGR_APP_ID }}
           private_key: ${{ secrets.GARDENER_GITHUB_WORKFLOW_PKG_MNGR_APP_PRIVATE_KEY }}
