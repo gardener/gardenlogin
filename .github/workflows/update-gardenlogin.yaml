@@ -38,3 +38,13 @@ jobs:
           -H 'Accept: application/vnd.github.everest-preview+json' \
           -H "Authorization: Token ${{ steps.gardener-github-workflows.outputs.token }}" \
           --data "${data}"
+      - name: Send update with latest versions to gardener/chocolatey-packages
+        run: |
+          windows_sha256sum=$(sha256sum bin/windows-amd64/gardenlogin_windows_amd64.exe | awk '{print $1}')
+          data='{"event_type": "update", "client_payload": { "component": "gardenlogin", "tag": "'"${{ steps.build_binary_files.outputs.latest_release_filtered_tag }}"'", "windows_sha": "'"$windows_sha256sum"'"}}'
+          echo "${data}"
+          curl -X POST https://api.github.com/repos/gardener/chocolatey-packages/dispatches \
+          -H 'Accept: application/vnd.github.everest-preview+json' \
+          -H "Authorization: Token ${{ steps.gardener-github-workflows.outputs.token }}" \
+          --data "${data}"
+
