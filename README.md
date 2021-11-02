@@ -9,6 +9,34 @@
 
 With GEP-16, users are able to generate kubeconfigs for `Shoot` clusters with short-lived certificates, to access the cluster as `cluster-admin`.
 
+## Installation
+gardenlogin plugin is shipped for mac and linux in a binary format.
+
+### Option 1: Install the latest release with Homebrew (macOS and Linux) as follows:
+
+`brew install gardener/tap/gardenlogin`
+
+or Chocolatey (Windows)
+
+`choco install gardenlogin`
+
+### Option 2: Manually download and install from gardenlogin releases as follows:
+
+Download the latest release:
+`curl -LO https://github.com/gardener/gardenlogin/releases/download/$(curl -s https://raw.githubusercontent.com/gardener/gardenlogin/master/LATEST)/gardenlogin-darwin-amd64`
+To download a specific version, replace the $(curl -s https://raw.githubusercontent.com/gardener/gardenlogin/master/LATEST) portion of the command with the specific version.
+
+For example, to download latest version on macOS, type:
+
+`curl -LO https://github.com/gardener/gardenlogin/releases/download/$(curl -s https://raw.githubusercontent.com/gardener/gardenlogin/master/LATEST)/gardenlogin-darwin-amd64`
+
+Make the gardenlogin binary executable.
+
+`chmod +x ./gardenlogin-darwin-amd64`
+
+Move the binary in to your PATH.
+
+`sudo mv ./gardenlogin-darwin-amd64 /usr/local/bin/gardenlogin`
 
 ## Configure Gardenlogin
 `gardenlogin` requires a configuration file. The default location is in `~/.garden/gardenlogin.yaml`.
