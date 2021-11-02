@@ -5,7 +5,7 @@ on:
     types:
       - published
 jobs:
-  update_gardenlogin_in_homebrew_tap:
+  update_gardenlogin_in_homebrew_tap_and_chocolatey_packages:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@5a4ac9002d0be2fb38bd78e4b4dbde5606d7042f # pin@v2
