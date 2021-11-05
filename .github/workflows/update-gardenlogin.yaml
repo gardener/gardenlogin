@@ -8,7 +8,7 @@ jobs:
   update_gardenlogin_in_homebrew_tap_and_chocolatey_packages:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@5a4ac9002d0be2fb38bd78e4b4dbde5606d7042f # pin@v2
+      - uses: actions/checkout@ec3a7ce113134d7a93b817d10a8272cb61118579 # pin@v2.4.0
       - name: Build the binary-files
         id: build_binary_files
         run: |
@@ -24,7 +24,7 @@ jobs:
           release-tag: ${{ steps.build_binary_files.outputs.latest_release_filtered_tag }}
       - name: Get token for gardener-github-pkg-mngr app
         id: gardener-github-workflows
-        uses: getsentry/action-github-app-token@8f656f2b31c7aaef91ba5cfdbe308d2a4d72e4f4 # pin@v1
+        uses: getsentry/action-github-app-token@38a3ce582e170ddfe8789f509597c6944f2292a9 # pin@v1.0.6
         with:
           app_id: ${{ secrets.GARDENER_GITHUB_WORKFLOW_PKG_MNGR_APP_ID }}
           private_key: ${{ secrets.GARDENER_GITHUB_WORKFLOW_PKG_MNGR_APP_PRIVATE_KEY }}
