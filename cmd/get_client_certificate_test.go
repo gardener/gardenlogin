@@ -330,7 +330,7 @@ users:
 
 				By("Expecting cached certificate to be printed to out buffer")
 				Expect(out.String()).To(Equal(fmt.Sprintf(
-					`{"kind":"ExecCredential","apiVersion":"client.authentication.k8s.io/v1beta1","spec":{},"status":{"expirationTimestamp":%q,"clientCertificateData":%q,"clientKeyData":%q}}
+					`{"kind":"ExecCredential","apiVersion":"client.authentication.k8s.io/v1beta1","spec":{"interactive":false},"status":{"expirationTimestamp":%q,"clientCertificateData":%q,"clientKeyData":%q}}
 `,
 					expirationTime.Format(time.RFC3339),
 					string(clientCert.CertificatePEM),
@@ -349,7 +349,7 @@ users:
 
 				By("Expecting certificate to be printed to out buffer")
 				Expect(out.String()).To(Equal(fmt.Sprintf(
-					`{"kind":"ExecCredential","apiVersion":"client.authentication.k8s.io/v1beta1","spec":{},"status":{"expirationTimestamp":%q,"clientCertificateData":%q,"clientKeyData":%q}}
+					`{"kind":"ExecCredential","apiVersion":"client.authentication.k8s.io/v1beta1","spec":{"interactive":false},"status":{"expirationTimestamp":%q,"clientCertificateData":%q,"clientKeyData":%q}}
 `,
 					expirationTime.Format(time.RFC3339),
 					"foo",
@@ -406,7 +406,7 @@ users:
 
 				By("Expecting cached certificate to be printed to out buffer")
 				Expect(out.String()).To(Equal(fmt.Sprintf(
-					`{"kind":"ExecCredential","apiVersion":"client.authentication.k8s.io/v1beta1","spec":{},"status":{"expirationTimestamp":%q,"clientCertificateData":%q,"clientKeyData":%q}}
+					`{"kind":"ExecCredential","apiVersion":"client.authentication.k8s.io/v1beta1","spec":{"interactive":false},"status":{"expirationTimestamp":%q,"clientCertificateData":%q,"clientKeyData":%q}}
 `,
 					expirationTime.Format(time.RFC3339),
 					string(clientCert.CertificatePEM),
@@ -431,7 +431,7 @@ users:
 
 				By("Expecting certificate to be printed to out buffer")
 				Expect(out.String()).To(Equal(fmt.Sprintf(
-					`{"kind":"ExecCredential","apiVersion":"client.authentication.k8s.io/v1beta1","spec":{},"status":{"expirationTimestamp":%q,"clientCertificateData":%q,"clientKeyData":%q}}
+					`{"kind":"ExecCredential","apiVersion":"client.authentication.k8s.io/v1beta1","spec":{"interactive":false},"status":{"expirationTimestamp":%q,"clientCertificateData":%q,"clientKeyData":%q}}
 `,
 					expirationTime.Format(time.RFC3339),
 					"foo",
