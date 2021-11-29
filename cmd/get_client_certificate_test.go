@@ -165,7 +165,7 @@ users:
 
 			Context("KUBERNETES_EXEC_INFO is unset", func() {
 				BeforeEach(func() {
-					os.Unsetenv("KUBERNETES_EXEC_INFO")
+					Expect(os.Unsetenv("KUBERNETES_EXEC_INFO")).To(Succeed())
 				})
 
 				Describe("when cluster is not set", func() {
@@ -208,7 +208,7 @@ users:
 
 			Context("KUBERNETES_EXEC_INFO is set", func() {
 				BeforeEach(func() {
-					os.Setenv("KUBERNETES_EXEC_INFO", "dummy")
+					Expect(os.Setenv("KUBERNETES_EXEC_INFO", "dummy")).To(Succeed())
 				})
 
 				Describe("when cluster is not set", func() {
@@ -301,7 +301,7 @@ users:
 			BeforeEach(func() {
 				execInfo, err := json.Marshal(ec)
 				Expect(err).ToNot(HaveOccurred())
-				os.Setenv("KUBERNETES_EXEC_INFO", string(execInfo))
+				Expect(os.Setenv("KUBERNETES_EXEC_INFO", string(execInfo))).To(Succeed())
 			})
 
 			AfterEach(func() {
@@ -374,7 +374,7 @@ users:
 
 		Context("accepting arguments only - support for kubectl versions < 1.20.0", func() {
 			BeforeEach(func() {
-				os.Unsetenv("KUBERNETES_EXEC_INFO")
+				Expect(os.Unsetenv("KUBERNETES_EXEC_INFO")).To(Succeed())
 				storeKey.ShootServer = ""
 			})
 
