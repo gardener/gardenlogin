@@ -14,7 +14,7 @@ type Key struct {
 	ShootName string
 	// ShootNamespace is the namespace of the shoot in the garden cluster
 	ShootNamespace string
-	// GardenClusterIdentity is the cluster identifier of the garden cluster.
+	// GardenClusterIdentity is the cluster identity of the garden cluster.
 	// See cluster-identity ConfigMap in kube-system namespace of the garden cluster
 	GardenClusterIdentity string
 }

@@ -45,18 +45,18 @@ func (f *FactoryImpl) Clock() Clock {
 
 // RESTClient returns the rest client for the garden cluster, identified by the garden cluster identity
 func (f *FactoryImpl) RESTClient(gardenClusterIdentity string) (rest.Interface, error) {
-	config := &GardenloginConfig{}
+	config := &Config{}
 	if err := viper.Unmarshal(config); err != nil {
 		return nil, err
 	}
 
-	gardenClusterConfig, err := config.GetClusterConfigForClusterIdentity(gardenClusterIdentity)
+	garden, err := config.FindGarden(gardenClusterIdentity)
 	if err != nil {
 		return nil, err
 	}
 
 	// TODO allow to select context
-	kubeconfig, err := homedir.Expand(gardenClusterConfig.Kubeconfig)
+	kubeconfig, err := homedir.Expand(garden.Kubeconfig)
 	if err != nil {
 		return nil, err
 	}
