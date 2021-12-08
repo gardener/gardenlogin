@@ -7,6 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package cmd
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -17,6 +18,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
+	cliflag "k8s.io/component-base/cli/flag"
 	"k8s.io/klog/v2"
 )
 
@@ -49,8 +51,14 @@ func init() {
 	// Here you will define your flags and configuration settings.
 	// Cobra supports persistent flags, which, if defined here,
 	// will be global for your application.
+	flags := rootCmd.PersistentFlags()
+	// Normalize all flags that are coming from other packages or pre-configurations
+	// a.k.a. change all "_" to "-". e.g. klog package
+	flags.SetNormalizeFunc(cliflag.WordSepNormalizeFunc)
 
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", fmt.Sprintf("config file (default is $HOME/%s/%s.yaml", gardenHomeFolder, configName))
+	addKlogFlags(flags)
+
+	flags.StringVar(&cfgFile, "config", "", fmt.Sprintf("config file (default is $HOME/%s/%s.yaml", gardenHomeFolder, configName))
 }
 
 // initConfig reads in config file and ENV variables if set.
@@ -105,5 +113,15 @@ func initConfig() {
 				klog.Warningf("Failed to set flag %s: %s\n", flag.Name, err.Error())
 			}
 		}
+	})
+}
+
+// addKlogFlags adds flags from k8s.io/klog
+func addKlogFlags(fs *pflag.FlagSet) {
+	local := flag.NewFlagSet(os.Args[0], flag.ExitOnError)
+	klog.InitFlags(local)
+
+	local.VisitAll(func(fl *flag.Flag) {
+		fs.AddGoFlag(fl)
 	})
 }
