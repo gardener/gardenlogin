@@ -58,6 +58,7 @@ func (c *Config) FindGarden(clusterIdentity string) (*Garden, error) {
 	for _, cluster := range gardenClusters {
 		if cluster.ClusterIdentity == clusterIdentity {
 			klog.Warningln("Your are using deprecated config properties for gardenlogin. Please update your config file as these properties will not be supported in future versions. \"gardenClusters\" was renamed to \"gardens\", \"clusterIdentity\" was renamed to \"identity\".\n")
+
 			return &Garden{
 				Identity:   cluster.ClusterIdentity,
 				Kubeconfig: cluster.Kubeconfig,

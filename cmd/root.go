@@ -79,6 +79,7 @@ func initConfig() {
 
 		viper.AddConfigPath(envHomeDir)
 		viper.AddConfigPath(configPath)
+
 		if os.Getenv(envConfigName) != "" {
 			viper.SetConfigName(os.Getenv(envConfigName))
 		} else {
@@ -146,6 +147,7 @@ func readInConfig() error {
 
 		return fmt.Errorf("failed to fallback to gardenctl-v2 config file: %w", err)
 	}
+
 	return origErr
 }
 
@@ -171,6 +173,7 @@ func addGardenctlV2Config() {
 
 	viper.AddConfigPath(envHomeDir)
 	viper.AddConfigPath(configPath)
+
 	if os.Getenv(envConfigName) != "" {
 		viper.SetConfigName(os.Getenv(envConfigName))
 	} else {
