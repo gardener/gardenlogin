@@ -58,7 +58,7 @@ func init() {
 
 	addKlogFlags(flags)
 
-	flags.StringVar(&cfgFile, "config", "", fmt.Sprintf("config file (default is $HOME/%s/%s.yaml", gardenHomeFolder, configName))
+	flags.StringVar(&cfgFile, "config", "", fmt.Sprintf("config file (default is %s)", filepath.Join("~", gardenHomeFolder, configName+".yaml")))
 }
 
 // initConfig reads in config file and ENV variables if set.
