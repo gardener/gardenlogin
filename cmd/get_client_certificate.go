@@ -107,9 +107,7 @@ func init() {
 		klog.Errorf("could not determine home directory %v", err)
 	}
 
-	f := &util.FactoryImpl{
-		HomeDirectory: dir,
-	}
+	f := util.NewFactory(dir)
 
 	getClientCertificateCmd = NewCmdGetClientCertificate(f, ioStreams)
 

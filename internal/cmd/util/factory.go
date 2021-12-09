@@ -7,6 +7,8 @@ SPDX-License-Identifier: Apache-2.0
 package util
 
 import (
+	"fmt"
+
 	"github.com/gardener/gardenlogin/internal/certificatecache/store"
 
 	gardencoreclientset "github.com/gardener/gardener/pkg/client/core/clientset/versioned"
@@ -31,22 +33,31 @@ type Factory interface {
 	CertificateStore(dir string) store.Interface
 }
 
-// FactoryImpl implements util.Factory interface
-type FactoryImpl struct {
-	HomeDirectory string
+// factoryImpl implements util.Factory interface
+type factoryImpl struct {
+	homeDirectory string
+
+	config *Config
 }
 
-var _ Factory = &FactoryImpl{}
+var _ Factory = &factoryImpl{}
+
+// NewFactory returns a new util.Factory.
+func NewFactory(homeDirectory string) Factory {
+	return &factoryImpl{
+		homeDirectory: homeDirectory,
+	}
+}
 
 // Clock returns a clock that provides access to the current time.
-func (f *FactoryImpl) Clock() Clock {
+func (f *factoryImpl) Clock() Clock {
 	return &RealClock{}
 }
 
 // RESTClient returns the rest client for the garden cluster, identified by the garden cluster identity
-func (f *FactoryImpl) RESTClient(gardenClusterIdentity string) (rest.Interface, error) {
-	config := &Config{}
-	if err := viper.Unmarshal(config); err != nil {
+func (f *factoryImpl) RESTClient(gardenClusterIdentity string) (rest.Interface, error) {
+	config, err := f.getConfig()
+	if err != nil {
 		return nil, err
 	}
 
@@ -76,11 +87,26 @@ func (f *FactoryImpl) RESTClient(gardenClusterIdentity string) (rest.Interface, 
 }
 
 // HomeDir returns the home directory for the executing user.
-func (f *FactoryImpl) HomeDir() string {
-	return f.HomeDirectory
+func (f *factoryImpl) HomeDir() string {
+	return f.homeDirectory
 }
 
 // CertificateStore returns a certificate store
-func (f *FactoryImpl) CertificateStore(dir string) store.Interface {
+func (f *factoryImpl) CertificateStore(dir string) store.Interface {
 	return &store.Store{Dir: dir}
+}
+
+func (f *factoryImpl) getConfig() (*Config, error) {
+	if f.config != nil {
+		return f.config, nil
+	}
+
+	config := &Config{}
+	if err := viper.Unmarshal(config); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal viper config: %w", err)
+	}
+
+	f.config = config
+
+	return config, nil
 }
