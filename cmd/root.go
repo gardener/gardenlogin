@@ -73,7 +73,7 @@ func initConfig() {
 
 		configPath := filepath.Join(home, gardenHomeFolder)
 
-		// Search config in $HOME/.garden or in path provided with the env variable GL_HOME with name ".gardenlogin" (without extension) or name from env variable GL_CONFIG_NAME.
+		// Search config in ~/.garden or in path provided with the env variable GL_HOME with name "gardenlogin" (without extension) or name from env variable GL_CONFIG_NAME.
 		envHomeDir, err := homedir.Expand(os.Getenv(envGardenHomeDir))
 		cobra.CheckErr(err)
 
@@ -167,7 +167,7 @@ func addGardenctlV2Config() {
 
 	configPath := filepath.Join(home, gardenHomeFolder)
 
-	// Search config in $HOME/.garden or in path provided with the env variable GCTL_HOME with name ".garden-login" (without extension) or name from env variable GCTL_CONFIG_NAME.
+	// Search config in ~/.garden or in path provided with the env variable GCTL_HOME with name "gardenctl-v2" (without extension) or name from env variable GCTL_CONFIG_NAME.
 	envHomeDir, err := homedir.Expand(os.Getenv(envGardenHomeDir))
 	cobra.CheckErr(err)
 
