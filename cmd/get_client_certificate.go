@@ -52,7 +52,7 @@ var (
 type ExecPluginConfig struct {
 	// ShootRef references the shoot cluster
 	ShootRef ShootRef `json:"shootRef"`
-	// GardenClusterIdentity is the cluster identifier of the garden cluster.
+	// GardenClusterIdentity is the cluster identity of the garden cluster.
 	// See cluster-identity ConfigMap in kube-system namespace of the garden cluster
 	GardenClusterIdentity string `json:"gardenClusterIdentity"`
 }
@@ -87,7 +87,7 @@ type GetClientCertificateOptions struct {
 	// ShootRef references the shoot cluster for which the client certificate credentials should be obtained
 	ShootRef ShootRef
 
-	// GardenClusterIdentity is the cluster identifier of the garden cluster.
+	// GardenClusterIdentity is the cluster identity of the garden cluster.
 	// See cluster-identity ConfigMap in kube-system namespace of the garden cluster
 	GardenClusterIdentity string
 
@@ -107,9 +107,7 @@ func init() {
 		klog.Errorf("could not determine home directory %v", err)
 	}
 
-	f := &util.FactoryImpl{
-		HomeDirectory: dir,
-	}
+	f := util.NewFactory(dir)
 
 	getClientCertificateCmd = NewCmdGetClientCertificate(f, ioStreams)
 
@@ -152,7 +150,7 @@ func NewCmdGetClientCertificate(f util.Factory, ioStreams genericclioptions.IOSt
 
 	cmd.Flags().StringVar(&o.ShootRef.Name, flagName, "", "Name of the shoot cluster")
 	cmd.Flags().StringVar(&o.ShootRef.Namespace, flagNamespace, "", "Namespace of the shoot cluster")
-	cmd.Flags().StringVar(&o.GardenClusterIdentity, flagGardenClusterIdentity, "", "Cluster identifier of the garden cluster")
+	cmd.Flags().StringVar(&o.GardenClusterIdentity, flagGardenClusterIdentity, "", "Cluster identity of the garden cluster")
 	cmd.Flags().StringVar(&o.CertificateCacheDir, flagCertificateCacheDir, filepath.Join(f.HomeDir(), ".kube", "cache", "gardenlogin"), "Directory of the certificate cache")
 	cmd.Flags().Int64Var(&o.AdminKubeconfigExpirationSeconds, flagExpirationSeconds, 900, "Validity duration of the requested credential")
 

@@ -73,12 +73,13 @@ func initConfig() {
 
 		configPath := filepath.Join(home, gardenHomeFolder)
 
-		// Search config in $HOME/.garden or in path provided with the env variable GL_HOME with name ".gardenlogin" (without extension) or name from env variable GL_CONFIG_NAME.
+		// Search config in ~/.garden or in path provided with the env variable GL_HOME with name "gardenlogin" (without extension) or name from env variable GL_CONFIG_NAME.
 		envHomeDir, err := homedir.Expand(os.Getenv(envGardenHomeDir))
 		cobra.CheckErr(err)
 
 		viper.AddConfigPath(envHomeDir)
 		viper.AddConfigPath(configPath)
+
 		if os.Getenv(envConfigName) != "" {
 			viper.SetConfigName(os.Getenv(envConfigName))
 		} else {
@@ -90,7 +91,7 @@ func initConfig() {
 	viper.AutomaticEnv() // read in environment variables that match
 
 	// If a config file is found, read it in.
-	if err := viper.ReadInConfig(); err != nil {
+	if err := readInConfig(); err != nil {
 		klog.Errorf("failed to read config file: %v", err)
 	}
 
@@ -124,4 +125,58 @@ func addKlogFlags(fs *pflag.FlagSet) {
 	local.VisitAll(func(fl *flag.Flag) {
 		fs.AddGoFlag(fl)
 	})
+}
+
+func readInConfig() error {
+	origErr := viper.ReadInConfig()
+	if origErr == nil {
+		return nil
+	}
+
+	if _, ok := origErr.(viper.ConfigFileNotFoundError); ok { // fallback to gardenctl-v2 config
+		addGardenctlV2Config()
+
+		err := viper.ReadInConfig()
+		if err == nil {
+			return nil
+		}
+
+		if _, ok := origErr.(viper.ConfigFileNotFoundError); ok {
+			return origErr
+		}
+
+		return fmt.Errorf("failed to fallback to gardenctl-v2 config file: %w", err)
+	}
+
+	return origErr
+}
+
+func addGardenctlV2Config() {
+	const (
+		envPrefix        = "GCTL"
+		envGardenHomeDir = envPrefix + "_HOME"
+		envConfigName    = envPrefix + "_CONFIG_NAME"
+
+		gardenHomeFolder = ".garden"
+		configName       = "gardenctl-v2"
+	)
+
+	// Find home directory.
+	home, err := homedir.Dir()
+	cobra.CheckErr(err)
+
+	configPath := filepath.Join(home, gardenHomeFolder)
+
+	// Search config in ~/.garden or in path provided with the env variable GCTL_HOME with name "gardenctl-v2" (without extension) or name from env variable GCTL_CONFIG_NAME.
+	envHomeDir, err := homedir.Expand(os.Getenv(envGardenHomeDir))
+	cobra.CheckErr(err)
+
+	viper.AddConfigPath(envHomeDir)
+	viper.AddConfigPath(configPath)
+
+	if os.Getenv(envConfigName) != "" {
+		viper.SetConfigName(os.Getenv(envConfigName))
+	} else {
+		viper.SetConfigName(configName)
+	}
 }

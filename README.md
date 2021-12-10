@@ -51,8 +51,18 @@ ln -s /usr/local/bin/gardenlogin /usr/local/bin/kubectl-gardenlogin
 ```
 
 ## Configure Gardenlogin
-`gardenlogin` requires a configuration file. The default location is in `~/.garden/gardenlogin.yaml`.
-### Config Path Overwrite:
+`gardenlogin` requires a configuration file. The default location is in `~/.garden/gardenlogin.yaml`. 
+
+If no configuration file is found, it falls back to the `gardenctl-v2` configuration file (`~/.garden/gardenctl-v2.yaml`) which shares the same configuration properties.
+
+### Example Config
+```yaml
+gardens:
+- identity: landscape-dev # Unique identity of the garden cluster. See cluster-identity ConfigMap in kube-system namespace of the garden cluster
+  kubeconfig: ~/path/to/garden-cluster/kubeconfig.yaml
+```
+
+### Config Path Overwrite
 - The `gardenlogin` config path can be overwritten with the environment variable `GL_HOME`.
 - The `gardenlogin` config name can be overwritten with the environment variable `GL_CONFIG_NAME`.
 
@@ -60,13 +70,6 @@ ln -s /usr/local/bin/gardenlogin /usr/local/bin/kubectl-gardenlogin
 export GL_HOME=/alternate/garden/config/dir
 export GL_CONFIG_NAME=myconfig # without extension!
 # config is expected to be under /alternate/garden/config/dir/myconfig.yaml
-```
-
-### Example Config:
-```yaml
-gardenClusters:
-- clusterIdentity: landscape-dev # Unique identifier of the garden cluster. See cluster-identity ConfigMap in kube-system namespace of the garden cluster
-  kubeconfig: ~/path/to/garden-cluster/kubeconfig.yaml
 ```
 
 ## Usage

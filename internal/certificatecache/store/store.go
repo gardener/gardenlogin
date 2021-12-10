@@ -31,7 +31,7 @@ type entity struct {
 }
 
 // Store provides access to the certificate cache on the local filesystem.
-// Filename of a certificate cache is sha256 digest of the shoot server, shoot name, shoot namespace and garden cluster identifier
+// Filename of a certificate cache is sha256 digest of the shoot server, shoot name, shoot namespace and garden cluster identity
 type Store struct {
 	// Dir is the backing directory of the store credentials
 	Dir string
