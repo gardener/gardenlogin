@@ -419,9 +419,9 @@ func clusterNameFromConfigForCluster(config api.Config, cluster *clientauthv1bet
 }
 
 func userNameFromConfigForClusterName(config api.Config, clusterName string) (string, error) {
-	for name, c := range config.Contexts {
+	for _, c := range config.Contexts {
 		if clusterName == c.Cluster {
-			return name, nil
+			return c.AuthInfo, nil
 		}
 	}
 
