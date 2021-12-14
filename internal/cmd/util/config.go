@@ -30,6 +30,10 @@ type Garden struct {
 
 	// Kubeconfig holds the path for the kubeconfig of the garden cluster
 	Kubeconfig string `yaml:"kubeconfig"`
+
+	// Context overrides the current-context of the garden cluster kubeconfig
+	// +optional
+	Context string `yaml:"context"`
 }
 
 // GardenClusterConfig holds the config of a garden cluster

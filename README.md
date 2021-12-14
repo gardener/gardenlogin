@@ -60,6 +60,7 @@ If no configuration file is found, it falls back to the `gardenctl-v2` configura
 gardens:
 - identity: landscape-dev # Unique identity of the garden cluster. See cluster-identity ConfigMap in kube-system namespace of the garden cluster
   kubeconfig: ~/path/to/garden-cluster/kubeconfig.yaml
+#  context: different-context # Overrides the current-context of the garden cluster kubeconfig  
 ```
 
 ### Config Path Overwrite
