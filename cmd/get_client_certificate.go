@@ -255,7 +255,7 @@ func (o *GetClientCertificateOptions) RunGetClientCertificate(ctx context.Contex
 
 	cachedCertificateSet, err := o.CertificateCacheStore.FindByKey(certificateCacheKey)
 	if err != nil {
-		klog.V(4).Info("could not find a cached certificate: %w", err)
+		klog.V(4).Infof("could not find a cached certificate: %v", err)
 	}
 
 	ec, err := o.getExecCredential(ctx, certificateCacheKey, cachedCertificateSet)
