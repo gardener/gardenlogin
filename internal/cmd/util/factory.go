@@ -66,14 +66,15 @@ func (f *factoryImpl) RESTClient(gardenClusterIdentity string) (rest.Interface, 
 		return nil, err
 	}
 
-	// TODO allow to select context
-	kubeconfig, err := homedir.Expand(garden.Kubeconfig)
+	kubeconfigPath, err := homedir.Expand(garden.Kubeconfig)
 	if err != nil {
 		return nil, err
 	}
 
-	// use the current context in kubeconfig
-	gardenConfig, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
+	gardenConfig, err := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
+		&clientcmd.ClientConfigLoadingRules{ExplicitPath: kubeconfigPath},
+		&clientcmd.ConfigOverrides{CurrentContext: garden.Context},
+	).ClientConfig()
 	if err != nil {
 		return nil, err
 	}

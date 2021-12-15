@@ -95,6 +95,8 @@ func initConfig() {
 		klog.Errorf("failed to read config file: %v", err)
 	}
 
+	klog.V(4).Infof("Gardenlogin config loaded from file: %s", viper.ConfigFileUsed())
+
 	getClientCertificateCmd.Flags().VisitAll(func(flag *pflag.Flag) {
 		viperKey := strcase.ToLowerCamel(flag.Name)
 
