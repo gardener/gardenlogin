@@ -38,7 +38,7 @@ arch=amd64
 version=$(curl -s https://raw.githubusercontent.com/gardener/gardenlogin/master/LATEST)
 
 # Download gardenlogin
-curl -LO https://github.com/gardener/gardenlogin/releases/download/$(curl -s https://raw.githubusercontent.com/gardener/gardenlogin/master/LATEST)/"gardenlogin_${os}_${arch}"
+curl -LO "https://github.com/gardener/gardenlogin/releases/download/${version}/gardenlogin_${os}_${arch}"
 
 # Make the gardenlogin binary executable
 chmod +x "./gardenlogin_${os}_${arch}"
