@@ -18,11 +18,6 @@ import (
 	"os"
 	"time"
 
-	c "github.com/gardener/gardenlogin/cmd"
-	"github.com/gardener/gardenlogin/internal/certificatecache"
-	"github.com/gardener/gardenlogin/internal/certificatecache/store"
-	"github.com/gardener/gardenlogin/internal/cmd/util"
-
 	"github.com/gardener/gardener/pkg/apis/authentication"
 	authenticationv1alpha1 "github.com/gardener/gardener/pkg/apis/authentication/v1alpha1"
 	"github.com/gardener/gardener/pkg/utils/secrets"
@@ -40,6 +35,11 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/rest/fake"
 	"k8s.io/utils/clock/testing"
+
+	c "github.com/gardener/gardenlogin/cmd"
+	"github.com/gardener/gardenlogin/internal/certificatecache"
+	"github.com/gardener/gardenlogin/internal/certificatecache/store"
+	"github.com/gardener/gardenlogin/internal/cmd/util"
 )
 
 var _ = Describe("GetClientCertificate", func() {

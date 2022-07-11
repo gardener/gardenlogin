@@ -16,10 +16,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/gardener/gardenlogin/internal/certificatecache"
-	"github.com/gardener/gardenlogin/internal/certificatecache/store"
-	"github.com/gardener/gardenlogin/internal/cmd/util"
-
 	authenticationv1alpha1 "github.com/gardener/gardener/pkg/apis/authentication/v1alpha1"
 	gardenscheme "github.com/gardener/gardener/pkg/client/core/clientset/versioned/scheme"
 	"github.com/mitchellh/go-homedir"
@@ -32,6 +28,10 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
 	"k8s.io/klog/v2"
+
+	"github.com/gardener/gardenlogin/internal/certificatecache"
+	"github.com/gardener/gardenlogin/internal/certificatecache/store"
+	"github.com/gardener/gardenlogin/internal/cmd/util"
 )
 
 const execInfoEnv = "KUBERNETES_EXEC_INFO"

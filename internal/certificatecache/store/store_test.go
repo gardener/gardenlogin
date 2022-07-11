@@ -11,10 +11,10 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/gardener/gardenlogin/internal/certificatecache"
-
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
+	"github.com/gardener/gardenlogin/internal/certificatecache"
 )
 
 var _ = Describe("Store", func() {
