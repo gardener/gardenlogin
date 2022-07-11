@@ -9,7 +9,7 @@ package cmd_test
 import (
 	"github.com/gardener/gardenlogin/cmd"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 )

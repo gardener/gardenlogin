@@ -26,7 +26,8 @@ import (
 	"github.com/gardener/gardener/pkg/apis/authentication"
 	authenticationv1alpha1 "github.com/gardener/gardener/pkg/apis/authentication/v1alpha1"
 	"github.com/gardener/gardener/pkg/utils/secrets"
-	. "github.com/onsi/ginkgo"
+	"github.com/gardener/gardener/pkg/utils/test"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/spf13/cobra"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -38,6 +39,7 @@ import (
 	"k8s.io/client-go/pkg/apis/clientauthentication/v1beta1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/rest/fake"
+	"k8s.io/utils/clock/testing"
 )
 
 var _ = Describe("GetClientCertificate", func() {
@@ -243,6 +245,8 @@ users:
 		)
 
 		BeforeEach(func() {
+			DeferCleanup(test.WithVar(&secrets.Clock, testing.NewFakeClock(fakeNow())))
+
 			storeKey = certificatecache.Key{
 				ShootServer:           "https://api.mycluster.myproject.foo",
 				ShootName:             "mycluster",
@@ -260,7 +264,7 @@ users:
 			cmd = c.NewCmdGetClientCertificate(f, ioStreams)
 
 			caCert = generateCaCert()
-			clientCert = generateClientCert(fakeNow, caCert, validity)
+			clientCert = generateClientCert(caCert, validity)
 
 			response := &authenticationv1alpha1.AdminKubeconfigRequest{
 				Status: authenticationv1alpha1.AdminKubeconfigRequestStatus{
@@ -473,7 +477,7 @@ func ObjBody(codec runtime.Codec, obj runtime.Object) io.ReadCloser {
 	return ioutil.NopCloser(bytes.NewReader([]byte(runtime.EncodeOrDie(codec, obj))))
 }
 
-func generateClientCert(now func() time.Time, caCert *secrets.Certificate, validity time.Duration) *secrets.Certificate {
+func generateClientCert(caCert *secrets.Certificate, validity time.Duration) *secrets.Certificate {
 	csc := &secrets.CertificateSecretConfig{
 		Name:         "foo",
 		CommonName:   "foo",
@@ -481,7 +485,6 @@ func generateClientCert(now func() time.Time, caCert *secrets.Certificate, valid
 		CertType:     secrets.ClientCert,
 		Validity:     &validity,
 		SigningCA:    caCert,
-		Now:          now,
 	}
 	cert, err := csc.GenerateCertificate()
 	Expect(err).ToNot(HaveOccurred())
