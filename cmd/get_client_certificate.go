@@ -24,7 +24,6 @@ import (
 	gardenscheme "github.com/gardener/gardener/pkg/client/core/clientset/versioned/scheme"
 	"github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
-	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	clientauthv1beta1 "k8s.io/client-go/pkg/apis/clientauthentication/v1beta1"
@@ -409,13 +408,12 @@ func clusterNameFromConfigForCluster(config api.Config, cluster *clientauthv1bet
 	}
 
 	for name, c := range config.Clusters {
-		if cluster.Server == c.Server &&
-			apiequality.Semantic.DeepEqual(cluster.CertificateAuthorityData, c.CertificateAuthorityData) {
+		if cluster.Server == c.Server {
 			return name, nil
 		}
 	}
 
-	return "", fmt.Errorf("no matching cluster found for server %s and certificate-authority-data", cluster.Server)
+	return "", fmt.Errorf("no matching cluster found for server %s", cluster.Server)
 }
 
 func userNameFromConfigForClusterName(config api.Config, clusterName string) (string, error) {
