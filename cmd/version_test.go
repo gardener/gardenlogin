@@ -7,11 +7,11 @@ SPDX-License-Identifier: Apache-2.0
 package cmd_test
 
 import (
-	"github.com/gardener/gardenlogin/cmd"
-
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
+
+	"github.com/gardener/gardenlogin/cmd"
 )
 
 var _ = Describe("Version", func() {
