@@ -16,7 +16,7 @@ import (
 	"k8s.io/component-base/version"
 )
 
-// VersionOptions is a struct to support version command
+// VersionOptions is a struct to support version command.
 type VersionOptions struct {
 	// Short indicates if just the version number should be printed
 	Short bool
@@ -27,7 +27,7 @@ type VersionOptions struct {
 	IOStreams genericclioptions.IOStreams
 }
 
-// NewVersionOptions returns initialized VersionOptions
+// NewVersionOptions returns initialized VersionOptions.
 func NewVersionOptions(ioStreams genericclioptions.IOStreams) *VersionOptions {
 	return &VersionOptions{
 		IOStreams: ioStreams,
@@ -61,7 +61,7 @@ func init() {
 	rootCmd.AddCommand(versionCmd)
 }
 
-// Validate validates the provided options
+// Validate validates the provided options.
 func (o *VersionOptions) Validate() error {
 	if o.Output != "" && o.Output != "yaml" && o.Output != "json" {
 		return fmt.Errorf(`--output must be 'yaml' or 'json'`)
@@ -70,7 +70,7 @@ func (o *VersionOptions) Validate() error {
 	return nil
 }
 
-// Run executes version command
+// Run executes version command.
 func (o *VersionOptions) Run() error {
 	versionInfo := version.Get()
 

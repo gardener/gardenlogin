@@ -33,7 +33,7 @@ const (
 
 var cfgFile string
 
-// rootCmd represents the base command when called without any subcommands
+// rootCmd represents the base command when called without any subcommands.
 var rootCmd = &cobra.Command{
 	Use:   "gardenlogin",
 	Short: "gardenlogin is a kubectl credential plugin for shoot cluster admin authentication",
@@ -119,7 +119,7 @@ func initConfig() {
 	})
 }
 
-// addKlogFlags adds flags from k8s.io/klog
+// addKlogFlags adds flags from k8s.io/klog.
 func addKlogFlags(fs *pflag.FlagSet) {
 	local := flag.NewFlagSet(os.Args[0], flag.ExitOnError)
 	klog.InitFlags(local)

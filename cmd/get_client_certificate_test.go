@@ -531,7 +531,7 @@ func (t *TestFactory) CertificateStore(_ string) store.Interface {
 	return t.store
 }
 
-// fakeClock implements Clock interface
+// fakeClock implements Clock interface.
 type fakeClock struct {
 	fakeTime time.Time
 }
@@ -560,7 +560,7 @@ func newFakeStore() *fakeStore {
 	}
 }
 
-// fakeStore implements store.Interface interface
+// fakeStore implements store.Interface interface.
 type fakeStore struct {
 	inMemory map[certificatecache.Key]struct {
 		certificateSet *certificatecache.CertificateSet

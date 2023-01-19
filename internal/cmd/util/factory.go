@@ -23,17 +23,17 @@ type Factory interface {
 	// Clock returns a clock that provides access to the current time.
 	Clock() Clock
 
-	// RESTClient returns the rest client for the garden cluster, identified by the garden cluster identity
+	// RESTClient returns the rest client for the garden cluster, identified by the garden cluster identity.
 	RESTClient(gardenClusterIdentity string) (rest.Interface, error)
 
 	// HomeDir returns the home directory for the executing user.
 	HomeDir() string
 
-	// CertificateStore returns a certificate store
+	// CertificateStore returns a certificate store.
 	CertificateStore(dir string) store.Interface
 }
 
-// factoryImpl implements util.Factory interface
+// factoryImpl implements util.Factory interface.
 type factoryImpl struct {
 	homeDirectory string
 
@@ -54,7 +54,7 @@ func (f *factoryImpl) Clock() Clock {
 	return &RealClock{}
 }
 
-// RESTClient returns the rest client for the garden cluster, identified by the garden cluster identity
+// RESTClient returns the rest client for the garden cluster, identified by the garden cluster identity.
 func (f *factoryImpl) RESTClient(gardenClusterIdentity string) (rest.Interface, error) {
 	config, err := f.getConfig()
 	if err != nil {
@@ -92,7 +92,7 @@ func (f *factoryImpl) HomeDir() string {
 	return f.homeDirectory
 }
 
-// CertificateStore returns a certificate store
+// CertificateStore returns a certificate store.
 func (f *factoryImpl) CertificateStore(dir string) store.Interface {
 	return &store.Store{Dir: dir}
 }
