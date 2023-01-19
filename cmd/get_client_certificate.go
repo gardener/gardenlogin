@@ -271,7 +271,7 @@ func (o *GetClientCertificateOptions) RunGetClientCertificate(ctx context.Contex
 
 func (o *GetClientCertificateOptions) getExecCredential(ctx context.Context, certificateCacheKey certificatecache.Key, cachedCertificateSet *certificatecache.CertificateSet) (*clientauthv1beta1.ExecCredential, error) {
 	if cachedCertificateSet != nil {
-		certPem, _ := pem.Decode([]byte(cachedCertificateSet.ClientCertificateData))
+		certPem, _ := pem.Decode(cachedCertificateSet.ClientCertificateData)
 		if certPem == nil {
 			return nil, errors.New("no PEM data found")
 		}
