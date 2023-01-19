@@ -15,7 +15,6 @@ import (
 )
 
 var _ = Describe("Version", func() {
-
 	It("should print version", func() {
 		streams, _, out, _ := genericclioptions.NewTestIOStreams()
 		o := cmd.NewVersionOptions(streams)

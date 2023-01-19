@@ -68,7 +68,7 @@ func (s *Store) FindByKey(key certificatecache.Key) (*certificatecache.Certifica
 
 // Save stores the given certificatecache.CertificateSet for the given key
 func (s *Store) Save(key certificatecache.Key, certificateSet certificatecache.CertificateSet) error {
-	if err := os.MkdirAll(s.Dir, 0700); err != nil {
+	if err := os.MkdirAll(s.Dir, 0o700); err != nil {
 		return err
 	}
 
@@ -79,7 +79,7 @@ func (s *Store) Save(key certificatecache.Key, certificateSet certificatecache.C
 
 	path := filepath.Join(s.Dir, filename)
 
-	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
+	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o600)
 	if err != nil {
 		return err
 	}

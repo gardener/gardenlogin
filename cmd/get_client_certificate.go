@@ -161,7 +161,6 @@ func (o *GetClientCertificateOptions) Complete(f util.Factory, cmd *cobra.Comman
 	env := os.Getenv(execInfoEnv)
 	if env != "" { // KUBERNETES_EXEC_INFO env variable set for kubectl versions starting with v1.20.0
 		obj, _, err := exec.LoadExecCredential([]byte(env))
-
 		if err != nil {
 			return err
 		}

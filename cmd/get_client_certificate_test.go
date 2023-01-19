@@ -586,7 +586,8 @@ func (s *fakeStore) Save(key certificatecache.Key, certificateSet certificatecac
 		err            error
 	}{
 		certificateSet: &certificateSet,
-		err:            nil}
+		err:            nil,
+	}
 
 	return res.err
 }
