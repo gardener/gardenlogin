@@ -13,7 +13,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"time"
@@ -468,13 +467,13 @@ func DefaultHeader() http.Header {
 }
 
 func BodyIntoObj(codec runtime.Codec, rc io.ReadCloser, obj runtime.Object) {
-	b, err := ioutil.ReadAll(rc)
+	b, err := io.ReadAll(rc)
 	Expect(err).ToNot(HaveOccurred())
 	Expect(runtime.DecodeInto(codec, b, obj)).To(Succeed())
 }
 
 func ObjBody(codec runtime.Codec, obj runtime.Object) io.ReadCloser {
-	return ioutil.NopCloser(bytes.NewReader([]byte(runtime.EncodeOrDie(codec, obj))))
+	return io.NopCloser(bytes.NewReader([]byte(runtime.EncodeOrDie(codec, obj))))
 }
 
 func generateClientCert(caCert *secrets.Certificate, validity time.Duration) *secrets.Certificate {
