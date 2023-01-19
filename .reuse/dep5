@@ -11,6 +11,8 @@ Files:
   .dockerignore
   .github/*
   .gitignore
+  .gimps.yaml
+  .golangci.yaml
   CODEOWNERS
   go.mod
   go.sum
