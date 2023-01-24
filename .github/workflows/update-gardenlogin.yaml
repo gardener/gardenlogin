@@ -8,10 +8,10 @@ jobs:
   update_gardenlogin_in_homebrew_tap_and_chocolatey_packages:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@ec3a7ce113134d7a93b817d10a8272cb61118579 # pin@v2.4.0
-      - uses: actions/setup-go@331ce1d993939866bb63c32c6cbbfd48fa76fc57 # pin@v2.1.4
+      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # pin@v3.3.0
+      - uses: actions/setup-go@6edd4406fa81c3da01a34fa6f6343087c207a568 # pin@v3.5.0
         with:
-          go-version: '^1.17'
+          go-version: '1.19.5'
       - name: Build the binary-files
         id: build_binary_files
         run: |
