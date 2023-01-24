@@ -13,7 +13,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"time"
@@ -468,13 +467,13 @@ func DefaultHeader() http.Header {
 }
 
 func BodyIntoObj(codec runtime.Codec, rc io.ReadCloser, obj runtime.Object) {
-	b, err := ioutil.ReadAll(rc)
+	b, err := io.ReadAll(rc)
 	Expect(err).ToNot(HaveOccurred())
 	Expect(runtime.DecodeInto(codec, b, obj)).To(Succeed())
 }
 
 func ObjBody(codec runtime.Codec, obj runtime.Object) io.ReadCloser {
-	return ioutil.NopCloser(bytes.NewReader([]byte(runtime.EncodeOrDie(codec, obj))))
+	return io.NopCloser(bytes.NewReader([]byte(runtime.EncodeOrDie(codec, obj))))
 }
 
 func generateClientCert(caCert *secrets.Certificate, validity time.Duration) *secrets.Certificate {
@@ -531,7 +530,7 @@ func (t *TestFactory) CertificateStore(_ string) store.Interface {
 	return t.store
 }
 
-// fakeClock implements Clock interface
+// fakeClock implements Clock interface.
 type fakeClock struct {
 	fakeTime time.Time
 }
@@ -560,7 +559,7 @@ func newFakeStore() *fakeStore {
 	}
 }
 
-// fakeStore implements store.Interface interface
+// fakeStore implements store.Interface interface.
 type fakeStore struct {
 	inMemory map[certificatecache.Key]struct {
 		certificateSet *certificatecache.CertificateSet
@@ -586,7 +585,8 @@ func (s *fakeStore) Save(key certificatecache.Key, certificateSet certificatecac
 		err            error
 	}{
 		certificateSet: &certificateSet,
-		err:            nil}
+		err:            nil,
+	}
 
 	return res.err
 }

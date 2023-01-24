@@ -7,7 +7,6 @@ SPDX-License-Identifier: Apache-2.0
 package store
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -18,14 +17,12 @@ import (
 )
 
 var _ = Describe("Store", func() {
-	var (
-		s = Store{}
-	)
+	s := Store{}
 
 	BeforeEach(func() {
 		var err error
 		s = Store{}
-		s.Dir, err = ioutil.TempDir("", "store")
+		s.Dir, err = os.MkdirTemp("", "store")
 		Expect(err).ToNot(HaveOccurred())
 	})
 
@@ -34,7 +31,6 @@ var _ = Describe("Store", func() {
 	})
 
 	Describe("FindByKey", func() {
-
 		It("should succeed", func() {
 			key := certificatecache.Key{
 				ShootServer:           "https://api.example.com",
@@ -47,7 +43,7 @@ var _ = Describe("Store", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			p := filepath.Join(s.Dir, filename)
-			Expect(ioutil.WriteFile(p, []byte(json), 0600)).To(Succeed())
+			Expect(os.WriteFile(p, []byte(json), 0o600)).To(Succeed())
 
 			got, err := s.FindByKey(key)
 			Expect(err).ToNot(HaveOccurred())
@@ -58,7 +54,6 @@ var _ = Describe("Store", func() {
 	})
 
 	Describe("Save", func() {
-
 		It("should succeed", func() {
 			key := certificatecache.Key{
 				ShootServer:           "https://api.example.com",
@@ -73,7 +68,7 @@ var _ = Describe("Store", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			p := filepath.Join(s.Dir, filename)
-			gotBytes, err := ioutil.ReadFile(p)
+			gotBytes, err := os.ReadFile(p)
 			Expect(err).ToNot(HaveOccurred())
 
 			want := "{\"clientCertificateData\":\"Zm9v\",\"clientKeyData\":\"YmFy\"}\n"

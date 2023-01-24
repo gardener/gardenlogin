@@ -16,13 +16,11 @@ else
   export SOURCE_PATH="$(readlink -f ${SOURCE_PATH})"
 fi
 
-GOLANGCI_LINT_ADDITIONAL_FLAGS=${GOLANGCI_LINT_ADDITIONAL_FLAGS:-""}
-
 # Install golangci-lint (linting tool)
-curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.46.2
+curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.50.1
 
 echo "> Lint gardenlogin"
 
 cd "$SOURCE_PATH"
 
-golangci-lint -v run ./... ${GOLANGCI_LINT_ADDITIONAL_FLAGS}
+golangci-lint -v run ./...

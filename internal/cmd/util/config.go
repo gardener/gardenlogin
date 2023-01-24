@@ -12,7 +12,7 @@ import (
 	"k8s.io/klog/v2"
 )
 
-// Config holds the gardenlogin config
+// Config holds the gardenlogin config.
 type Config struct {
 	// Gardens is a list of known Garden clusters
 	Gardens []Garden `yaml:"gardens"`
@@ -22,7 +22,7 @@ type Config struct {
 	GardenClusters []GardenClusterConfig `yaml:"gardenClusters"`
 }
 
-// Garden holds the config of a garden cluster
+// Garden holds the config of a garden cluster.
 type Garden struct {
 	// Identity is the cluster identity of the garden cluster.
 	// See cluster-identity ConfigMap in kube-system namespace of the garden cluster
@@ -36,15 +36,15 @@ type Garden struct {
 	Context string `yaml:"context"`
 }
 
-// GardenClusterConfig holds the config of a garden cluster
-// Deprecated: use Garden instead
+// GardenClusterConfig holds the config of a garden cluster.
+// Deprecated: use Garden instead.
 type GardenClusterConfig struct {
 	// ClusterIdentity is the cluster identifier of the garden cluster.
-	// Deprecated: use Garden.Identity instead
+	// Deprecated: use Garden.Identity instead.
 	ClusterIdentity string `yaml:"clusterIdentity"`
 
-	// Kubeconfig holds the path for the kubeconfig of the garden cluster
-	// Deprecated: use Garden.Kubeconfig instead
+	// Kubeconfig holds the path for the kubeconfig of the garden cluster.
+	// Deprecated: use Garden.Kubeconfig instead.
 	Kubeconfig string `yaml:"kubeconfig"`
 }
 

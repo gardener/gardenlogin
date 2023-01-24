@@ -42,12 +42,12 @@ var (
 		Out:    os.Stdout,
 		ErrOut: os.Stderr,
 	}
-	// getClientCertificateCmd represents the getClientCertificate command
+	// getClientCertificateCmd represents the getClientCertificate command.
 	getClientCertificateCmd *cobra.Command
 )
 
 // ExecPluginConfig contains additional data which is needed for the
-// gardenlogin plugin to authenticate against the shoot cluster
+// gardenlogin plugin to authenticate against the shoot cluster.
 type ExecPluginConfig struct {
 	// ShootRef references the shoot cluster
 	ShootRef ShootRef `json:"shootRef"`
@@ -56,7 +56,7 @@ type ExecPluginConfig struct {
 	GardenClusterIdentity string `json:"gardenClusterIdentity"`
 }
 
-// ShootRef references the shoot cluster by namespace and name
+// ShootRef references the shoot cluster by namespace and name.
 type ShootRef struct {
 	// Namespace is the namespace of the shoot cluster
 	Namespace string `json:"namespace"`
@@ -64,7 +64,7 @@ type ShootRef struct {
 	Name string `json:"name"`
 }
 
-// GetClientCertificateOptions has the data required to perform the getClientCertificate operation
+// GetClientCertificateOptions has the data required to perform the getClientCertificate operation.
 type GetClientCertificateOptions struct {
 	// IOStreams provides the standard names for iostreams
 	IOStreams genericclioptions.IOStreams
@@ -113,7 +113,7 @@ func init() {
 	rootCmd.AddCommand(getClientCertificateCmd)
 }
 
-// NewGetClientCertificateOptions returns the options to perform the get-client-certificate command
+// NewGetClientCertificateOptions returns the options to perform the get-client-certificate command.
 func NewGetClientCertificateOptions(ioStreams genericclioptions.IOStreams) *GetClientCertificateOptions {
 	return &GetClientCertificateOptions{
 		IOStreams: ioStreams,
@@ -128,7 +128,7 @@ const (
 	flagExpirationSeconds     = "expiration-seconds"
 )
 
-// NewCmdGetClientCertificate returns the get-client-certificate cobra.Command
+// NewCmdGetClientCertificate returns the get-client-certificate cobra.Command.
 func NewCmdGetClientCertificate(f util.Factory, ioStreams genericclioptions.IOStreams) *cobra.Command {
 	o := NewGetClientCertificateOptions(ioStreams)
 	cmd := &cobra.Command{
@@ -161,7 +161,6 @@ func (o *GetClientCertificateOptions) Complete(f util.Factory, cmd *cobra.Comman
 	env := os.Getenv(execInfoEnv)
 	if env != "" { // KUBERNETES_EXEC_INFO env variable set for kubectl versions starting with v1.20.0
 		obj, _, err := exec.LoadExecCredential([]byte(env))
-
 		if err != nil {
 			return err
 		}
@@ -210,7 +209,7 @@ func (o *GetClientCertificateOptions) Complete(f util.Factory, cmd *cobra.Comman
 	return nil
 }
 
-// Validate makes sure provided values for GetClientCertificateOptions are valid
+// Validate makes sure provided values for GetClientCertificateOptions are valid.
 func (o *GetClientCertificateOptions) Validate() error {
 	if os.Getenv(execInfoEnv) != "" {
 		if o.ShootCluster == nil {
@@ -272,7 +271,7 @@ func (o *GetClientCertificateOptions) RunGetClientCertificate(ctx context.Contex
 
 func (o *GetClientCertificateOptions) getExecCredential(ctx context.Context, certificateCacheKey certificatecache.Key, cachedCertificateSet *certificatecache.CertificateSet) (*clientauthv1beta1.ExecCredential, error) {
 	if cachedCertificateSet != nil {
-		certPem, _ := pem.Decode([]byte(cachedCertificateSet.ClientCertificateData))
+		certPem, _ := pem.Decode(cachedCertificateSet.ClientCertificateData)
 		if certPem == nil {
 			return nil, errors.New("no PEM data found")
 		}

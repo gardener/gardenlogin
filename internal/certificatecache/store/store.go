@@ -17,7 +17,7 @@ import (
 	"github.com/gardener/gardenlogin/internal/certificatecache"
 )
 
-// Interface defines functions to read and write to the certificate store
+// Interface defines functions to read and write to the certificate store.
 type Interface interface {
 	// FindByKey returns the certificatecache.CertificateSet for a given key
 	FindByKey(key certificatecache.Key) (*certificatecache.CertificateSet, error)
@@ -31,13 +31,13 @@ type entity struct {
 }
 
 // Store provides access to the certificate cache on the local filesystem.
-// Filename of a certificate cache is sha256 digest of the shoot server, shoot name, shoot namespace and garden cluster identity
+// Filename of a certificate cache is sha256 digest of the shoot server, shoot name, shoot namespace and garden cluster identity.
 type Store struct {
 	// Dir is the backing directory of the store credentials
 	Dir string
 }
 
-// FindByKey returns the certificatecache.CertificateSet for a given key
+// FindByKey returns the certificatecache.CertificateSet for a given key.
 func (s *Store) FindByKey(key certificatecache.Key) (*certificatecache.CertificateSet, error) {
 	filename, err := generateFilename(key)
 	if err != nil {
@@ -66,9 +66,9 @@ func (s *Store) FindByKey(key certificatecache.Key) (*certificatecache.Certifica
 	}, nil
 }
 
-// Save stores the given certificatecache.CertificateSet for the given key
+// Save stores the given certificatecache.CertificateSet for the given key.
 func (s *Store) Save(key certificatecache.Key, certificateSet certificatecache.CertificateSet) error {
-	if err := os.MkdirAll(s.Dir, 0700); err != nil {
+	if err := os.MkdirAll(s.Dir, 0o700); err != nil {
 		return err
 	}
 
@@ -79,7 +79,7 @@ func (s *Store) Save(key certificatecache.Key, certificateSet certificatecache.C
 
 	path := filepath.Join(s.Dir, filename)
 
-	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
+	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o600)
 	if err != nil {
 		return err
 	}
