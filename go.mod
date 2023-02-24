@@ -13,7 +13,6 @@ require (
 	github.com/spf13/viper v1.15.0
 	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/apimachinery v0.25.0
-	k8s.io/apiserver v0.25.0
 	k8s.io/client-go v11.0.1-0.20190409021438-1a26190bd76a+incompatible
 	k8s.io/component-base v0.25.0
 	k8s.io/klog/v2 v2.70.1
@@ -97,6 +96,7 @@ require (
 	istio.io/client-go v1.15.3 // indirect
 	k8s.io/api v0.25.0 // indirect
 	k8s.io/apiextensions-apiserver v0.25.0 // indirect
+	k8s.io/apiserver v0.25.0 // indirect
 	k8s.io/autoscaler/vertical-pod-autoscaler v0.12.0 // indirect
 	k8s.io/helm v2.16.1+incompatible // indirect
 	k8s.io/kube-aggregator v0.25.0 // indirect

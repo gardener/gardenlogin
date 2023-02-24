@@ -27,7 +27,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
-	"k8s.io/apiserver/pkg/authentication/user"
 	"k8s.io/client-go/pkg/apis/clientauthentication/v1beta1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/rest/fake"
@@ -479,7 +478,7 @@ func generateClientCert(caCert *secrets.Certificate, validity time.Duration) *se
 	csc := &secrets.CertificateSecretConfig{
 		Name:         "foo",
 		CommonName:   "foo",
-		Organization: []string{user.SystemPrivilegedGroup},
+		Organization: []string{"system:masters"},
 		CertType:     secrets.ClientCert,
 		Validity:     &validity,
 		SigningCA:    caCert,
