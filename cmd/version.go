@@ -12,8 +12,9 @@ import (
 
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
-	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/component-base/version"
+
+	"github.com/gardener/gardenlogin/internal/cmd/util"
 )
 
 // VersionOptions is a struct to support version command.
@@ -24,11 +25,11 @@ type VersionOptions struct {
 	Output string
 
 	// IOStreams provides the standard names for iostreams
-	IOStreams genericclioptions.IOStreams
+	IOStreams util.IOStreams
 }
 
 // NewVersionOptions returns initialized VersionOptions.
-func NewVersionOptions(ioStreams genericclioptions.IOStreams) *VersionOptions {
+func NewVersionOptions(ioStreams util.IOStreams) *VersionOptions {
 	return &VersionOptions{
 		IOStreams: ioStreams,
 	}

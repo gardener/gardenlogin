@@ -9,14 +9,14 @@ package cmd_test
 import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"k8s.io/cli-runtime/pkg/genericclioptions"
 
 	"github.com/gardener/gardenlogin/cmd"
+	"github.com/gardener/gardenlogin/internal/cmd/util"
 )
 
 var _ = Describe("Version", func() {
 	It("should print version", func() {
-		streams, _, out, _ := genericclioptions.NewTestIOStreams()
+		streams, _, out, _ := util.NewTestIOStreams()
 		o := cmd.NewVersionOptions(streams)
 		err := o.Validate()
 		Expect(err).ToNot(HaveOccurred())

@@ -28,8 +28,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apiserver/pkg/authentication/user"
-	"k8s.io/cli-runtime/pkg/genericclioptions"
-	"k8s.io/cli-runtime/pkg/resource"
 	"k8s.io/client-go/pkg/apis/clientauthentication/v1beta1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/rest/fake"
@@ -43,15 +41,16 @@ import (
 
 var _ = Describe("GetClientCertificate", func() {
 	var (
-		codec runtime.Codec
+		codecs serializer.CodecFactory
+		codec  runtime.Codec
 
 		kubeconfig     string
 		expirationTime time.Time
 		validity       time.Duration
 
-		ioStreams genericclioptions.IOStreams
-		errOut    *bytes.Buffer
-		out       *bytes.Buffer
+		ioStreams util.IOStreams
+		errOut    *util.SafeBytesBuffer
+		out       *util.SafeBytesBuffer
 
 		shootCaData []byte
 		ec          v1beta1.ExecCredential
@@ -61,10 +60,10 @@ var _ = Describe("GetClientCertificate", func() {
 		scheme := runtime.NewScheme()
 		Expect(authenticationv1alpha1.AddToScheme(scheme)).To(Succeed())
 		Expect(authentication.AddToScheme(scheme)).To(Succeed())
-		codecs := serializer.NewCodecFactory(scheme)
+		codecs = serializer.NewCodecFactory(scheme)
 		codec = codecs.LegacyCodec(authenticationv1alpha1.SchemeGroupVersion)
 
-		ioStreams, _, out, errOut = genericclioptions.NewTestIOStreams()
+		ioStreams, _, out, errOut = util.NewTestIOStreams()
 
 		kubeconfig = `
 apiVersion: v1
@@ -276,7 +275,7 @@ users:
 					Group   string
 					Version string
 				}{Group: "", Version: "v1"},
-				NegotiatedSerializer: resource.UnstructuredPlusDefaultContentConfig().NegotiatedSerializer,
+				NegotiatedSerializer: codecs.WithoutConversion(),
 				Client: fake.CreateHTTPClient(func(req *http.Request) (*http.Response, error) {
 					switch req.Method {
 					case "POST":
