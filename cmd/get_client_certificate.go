@@ -21,7 +21,6 @@ import (
 	"github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/cli-runtime/pkg/genericclioptions"
 	clientauthv1beta1 "k8s.io/client-go/pkg/apis/clientauthentication/v1beta1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/auth/exec"
@@ -37,7 +36,7 @@ import (
 const execInfoEnv = "KUBERNETES_EXEC_INFO"
 
 var (
-	ioStreams = genericclioptions.IOStreams{
+	ioStreams = util.IOStreams{
 		In:     os.Stdin,
 		Out:    os.Stdout,
 		ErrOut: os.Stderr,
@@ -67,7 +66,7 @@ type ShootRef struct {
 // GetClientCertificateOptions has the data required to perform the getClientCertificate operation.
 type GetClientCertificateOptions struct {
 	// IOStreams provides the standard names for iostreams
-	IOStreams genericclioptions.IOStreams
+	IOStreams util.IOStreams
 	// CertificateCacheStore is the store for accessing the certificatecache.CertificateSet items
 	CertificateCacheStore store.Interface
 
@@ -114,7 +113,7 @@ func init() {
 }
 
 // NewGetClientCertificateOptions returns the options to perform the get-client-certificate command.
-func NewGetClientCertificateOptions(ioStreams genericclioptions.IOStreams) *GetClientCertificateOptions {
+func NewGetClientCertificateOptions(ioStreams util.IOStreams) *GetClientCertificateOptions {
 	return &GetClientCertificateOptions{
 		IOStreams: ioStreams,
 	}
@@ -129,7 +128,7 @@ const (
 )
 
 // NewCmdGetClientCertificate returns the get-client-certificate cobra.Command.
-func NewCmdGetClientCertificate(f util.Factory, ioStreams genericclioptions.IOStreams) *cobra.Command {
+func NewCmdGetClientCertificate(f util.Factory, ioStreams util.IOStreams) *cobra.Command {
 	o := NewGetClientCertificateOptions(ioStreams)
 	cmd := &cobra.Command{
 		Use:   "get-client-certificate",
