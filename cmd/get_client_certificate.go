@@ -164,20 +164,20 @@ func (o *GetClientCertificateOptions) Complete(f util.Factory, cmd *cobra.Comman
 			return err
 		}
 
-		cred, ok := obj.(*clientauthenticationv1beta1.ExecCredential)
+		v1beta1ExecCredential, ok := obj.(*clientauthenticationv1beta1.ExecCredential)
 		if !ok {
 			return fmt.Errorf("cannot convert to ExecCredential: %w", err)
 		}
 
 		var extension ExecPluginConfig
 
-		if cred.Spec.Cluster.Config.Raw != nil {
-			if err := json.Unmarshal(cred.Spec.Cluster.Config.Raw, &extension); err != nil {
+		if v1beta1ExecCredential.Spec.Cluster.Config.Raw != nil {
+			if err := json.Unmarshal(v1beta1ExecCredential.Spec.Cluster.Config.Raw, &extension); err != nil {
 				return err
 			}
 		}
 
-		o.ShootCluster = cred.Spec.Cluster
+		o.ShootCluster = v1beta1ExecCredential.Spec.Cluster
 
 		if o.GardenClusterIdentity == "" {
 			o.GardenClusterIdentity = extension.GardenClusterIdentity
@@ -255,13 +255,13 @@ func (o *GetClientCertificateOptions) RunGetClientCertificate(ctx context.Contex
 		klog.V(4).Infof("could not find a cached certificate: %v", err)
 	}
 
-	ec, err := o.getExecCredential(ctx, certificateCacheKey, cachedCertificateSet)
+	v1beta1ExecCredential, err := o.getExecCredential(ctx, certificateCacheKey, cachedCertificateSet)
 	if err != nil {
 		return fmt.Errorf("failed to get ExecCredential: %w", err)
 	}
 
 	e := json.NewEncoder(o.IOStreams.Out)
-	if err := e.Encode(ec); err != nil {
+	if err := e.Encode(v1beta1ExecCredential); err != nil {
 		return fmt.Errorf("could not write the ExecCredential: %w", err)
 	}
 
