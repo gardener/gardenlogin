@@ -27,6 +27,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	clientauthenticationv1 "k8s.io/client-go/pkg/apis/clientauthentication/v1"
 	clientauthenticationv1beta1 "k8s.io/client-go/pkg/apis/clientauthentication/v1beta1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/rest/fake"
@@ -35,6 +37,7 @@ import (
 	c "github.com/gardener/gardenlogin/cmd"
 	"github.com/gardener/gardenlogin/internal/certificatecache"
 	"github.com/gardener/gardenlogin/internal/certificatecache/store"
+	"github.com/gardener/gardenlogin/internal/clientauthentication"
 	"github.com/gardener/gardenlogin/internal/cmd/util"
 )
 
@@ -51,14 +54,22 @@ var _ = Describe("GetClientCertificate", func() {
 		errOut    *util.SafeBytesBuffer
 		out       *util.SafeBytesBuffer
 
-		shootCaData []byte
-		ec          clientauthenticationv1beta1.ExecCredential
+		shootCaData           []byte
+		v1beta1ExecCredential clientauthenticationv1beta1.ExecCredential
+		v1ExecCredential      clientauthenticationv1.ExecCredential
 	)
 
 	BeforeEach(func() {
-		scheme := runtime.NewScheme()
+		scheme := clientgoscheme.Scheme
+
 		Expect(authenticationv1alpha1.AddToScheme(scheme)).To(Succeed())
 		Expect(authentication.AddToScheme(scheme)).To(Succeed())
+
+		Expect(clientauthenticationv1beta1.AddToScheme(scheme)).To(Succeed())
+		Expect(clientauthenticationv1.AddToScheme(scheme)).To(Succeed())
+
+		Expect(clientauthentication.AddConversionFuncs(scheme)).To(Succeed())
+
 		codecs = serializer.NewCodecFactory(scheme)
 		codec = codecs.LegacyCodec(authenticationv1alpha1.SchemeGroupVersion)
 
@@ -102,13 +113,28 @@ users:
 		epcRaw, err := json.Marshal(epc)
 		Expect(err).ToNot(HaveOccurred())
 
-		ec = clientauthenticationv1beta1.ExecCredential{
+		v1beta1ExecCredential = clientauthenticationv1beta1.ExecCredential{
 			TypeMeta: metav1.TypeMeta{
 				Kind:       "ExecCredential",
 				APIVersion: clientauthenticationv1beta1.SchemeGroupVersion.String(),
 			},
 			Spec: clientauthenticationv1beta1.ExecCredentialSpec{
 				Cluster: &clientauthenticationv1beta1.Cluster{
+					Server:                   "https://api.mycluster.myproject.foo",
+					CertificateAuthorityData: shootCaData,
+					Config: runtime.RawExtension{
+						Raw: epcRaw,
+					},
+				},
+			},
+		}
+		v1ExecCredential = clientauthenticationv1.ExecCredential{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "ExecCredential",
+				APIVersion: clientauthenticationv1.SchemeGroupVersion.String(),
+			},
+			Spec: clientauthenticationv1.ExecCredentialSpec{
+				Cluster: &clientauthenticationv1.Cluster{
 					Server:                   "https://api.mycluster.myproject.foo",
 					CertificateAuthorityData: shootCaData,
 					Config: runtime.RawExtension{
@@ -128,7 +154,7 @@ users:
 		BeforeEach(func() {
 			// valid GetClientCertificateOptions
 			o = c.GetClientCertificateOptions{
-				ShootCluster: &clientauthenticationv1beta1.Cluster{
+				ShootCluster: &clientauthenticationv1.Cluster{
 					Server:                   "foo",
 					CertificateAuthorityData: []byte("foo"),
 				},
@@ -259,6 +285,7 @@ users:
 			}
 
 			cmd = c.NewCmdGetClientCertificate(f, ioStreams)
+			cmd.SetArgs([]string{})
 
 			caCert = generateCaCert()
 			clientCert = generateClientCert(caCert, validity)
@@ -299,78 +326,94 @@ users:
 		})
 
 		Context("KUBERNETES_EXEC_INFO is set", func() {
-			BeforeEach(func() {
-				execInfo, err := json.Marshal(ec)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(os.Setenv("KUBERNETES_EXEC_INFO", string(execInfo))).To(Succeed())
-			})
-
 			AfterEach(func() {
 				Expect(os.Unsetenv("KUBERNETES_EXEC_INFO")).To(Succeed())
 			})
 
-			It("Should return cached client certificate", func() {
-				// a rest client is not needed for this test
-				f.restClient = nil
+			DescribeTable("Should return cached client certificate",
+				func(version string, execCredential interface{}) {
+					By(fmt.Sprintf("using %s", version))
 
-				By("Ensure valid certificate is found in certificate cache")
-				cachedCertificateSet := certificatecache.CertificateSet{
-					ClientCertificateData: clientCert.CertificatePEM,
-					ClientKeyData:         clientCert.PrivateKeyPEM,
-				}
-				f.store.inMemory[storeKey] = struct {
-					certificateSet *certificatecache.CertificateSet
-					err            error
-				}{
-					certificateSet: &cachedCertificateSet,
-					err:            nil,
-				}
+					execInfo, err := json.Marshal(execCredential)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(os.Setenv("KUBERNETES_EXEC_INFO", string(execInfo))).To(Succeed())
 
-				By("executing the command")
-				Expect(cmd.Execute()).To(Succeed())
+					// a rest client is not needed for this test
+					f.restClient = nil
 
-				By("Expecting cached certificate to be printed to out buffer")
-				Expect(out.String()).To(Equal(fmt.Sprintf(
-					`{"kind":"ExecCredential","apiVersion":"client.authentication.k8s.io/v1beta1","spec":{"interactive":false},"status":{"expirationTimestamp":%q,"clientCertificateData":%q,"clientKeyData":%q}}
+					By("Ensure valid certificate is found in certificate cache")
+					cachedCertificateSet := certificatecache.CertificateSet{
+						ClientCertificateData: clientCert.CertificatePEM,
+						ClientKeyData:         clientCert.PrivateKeyPEM,
+					}
+					f.store.inMemory[storeKey] = struct {
+						certificateSet *certificatecache.CertificateSet
+						err            error
+					}{
+						certificateSet: &cachedCertificateSet,
+						err:            nil,
+					}
+
+					By("executing the command")
+					Expect(cmd.Execute()).To(Succeed())
+
+					By("Expecting cached certificate to be printed to out buffer")
+					Expect(out.String()).To(Equal(fmt.Sprintf(
+						`{"kind":"ExecCredential","apiVersion":"client.authentication.k8s.io/%s","spec":{"interactive":false},"status":{"expirationTimestamp":%q,"clientCertificateData":%q,"clientKeyData":%q}}
 `,
-					expirationTime.Format(time.RFC3339),
-					string(clientCert.CertificatePEM),
-					string(clientCert.PrivateKeyPEM),
-				)))
-				Expect(errOut.String()).To(BeEmpty())
-			})
+						version,
+						expirationTime.Format(time.RFC3339),
+						string(clientCert.CertificatePEM),
+						string(clientCert.PrivateKeyPEM),
+					)))
+					Expect(errOut.String()).To(BeEmpty())
+				},
+				Entry("v1beta1ExecCredential", "v1beta1", &v1beta1ExecCredential),
+				Entry("v1ExecCredential", "v1", &v1ExecCredential),
+			)
 
-			It("Should fetch the client certificate", func() {
-				By("By using fake RESTClient")
-				f.restClient = restClient
+			DescribeTable("Should fetch the client certificate",
+				func(version string, execCredential interface{}) {
+					By(fmt.Sprintf("using %s", version))
 
-				By("executing the command")
-				Expect(cmd.ParseFlags([]string{"--expiration-seconds=42"})).To(Succeed())
-				Expect(cmd.Execute()).To(Succeed())
+					execInfo, err := json.Marshal(execCredential)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(os.Setenv("KUBERNETES_EXEC_INFO", string(execInfo))).To(Succeed())
 
-				By("Expecting certificate to be printed to out buffer")
-				Expect(out.String()).To(Equal(fmt.Sprintf(
-					`{"kind":"ExecCredential","apiVersion":"client.authentication.k8s.io/v1beta1","spec":{"interactive":false},"status":{"expirationTimestamp":%q,"clientCertificateData":%q,"clientKeyData":%q}}
+					By("By using fake RESTClient")
+					f.restClient = restClient
+
+					By("executing the command")
+					Expect(cmd.ParseFlags([]string{"--expiration-seconds=42"})).To(Succeed())
+					Expect(cmd.Execute()).To(Succeed())
+
+					By("Expecting certificate to be printed to out buffer")
+					Expect(out.String()).To(Equal(fmt.Sprintf(
+						`{"kind":"ExecCredential","apiVersion":"client.authentication.k8s.io/%s","spec":{"interactive":false},"status":{"expirationTimestamp":%q,"clientCertificateData":%q,"clientKeyData":%q}}
 `,
-					expirationTime.Format(time.RFC3339),
-					"foo",
-					"bar",
-				)))
-				Expect(errOut.String()).To(BeEmpty())
+						version,
+						expirationTime.Format(time.RFC3339),
+						"foo",
+						"bar",
+					)))
+					Expect(errOut.String()).To(BeEmpty())
 
-				By("Expecting certificate to be stored in cache")
-				wantCertificateSet := certificatecache.CertificateSet{
-					ClientCertificateData: []byte("foo"),
-					ClientKeyData:         []byte("bar"),
-				}
-				Expect(f.store.inMemory[storeKey]).To(Equal(struct {
-					certificateSet *certificatecache.CertificateSet
-					err            error
-				}{
-					certificateSet: &wantCertificateSet,
-					err:            nil,
-				}))
-			})
+					By("Expecting certificate to be stored in cache")
+					wantCertificateSet := certificatecache.CertificateSet{
+						ClientCertificateData: []byte("foo"),
+						ClientKeyData:         []byte("bar"),
+					}
+					Expect(f.store.inMemory[storeKey]).To(Equal(struct {
+						certificateSet *certificatecache.CertificateSet
+						err            error
+					}{
+						certificateSet: &wantCertificateSet,
+						err:            nil,
+					}))
+				},
+				Entry("v1ExecCredential", "v1", &v1ExecCredential),
+				Entry("v1beta1ExecCredential", "v1beta1", &v1beta1ExecCredential),
+			)
 		})
 
 		Context("accepting arguments only - support for kubectl versions < 1.20.0", func() {

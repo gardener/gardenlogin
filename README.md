@@ -102,7 +102,7 @@ users:
 - name: shoot--myproject--mycluster
   user:
     exec:
-      apiVersion: client.authentication.k8s.io/v1beta1
+      apiVersion: client.authentication.k8s.io/v1
       provideClusterInfo: true
       command: kubectl
       args:
