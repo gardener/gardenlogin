@@ -31,8 +31,7 @@ help: ## Display this help.
 ##@ Development
 
 .PHONY: test
-test: fmt lint ## Run tests.
-	@./hack/test-integration.sh
+test: fmt lint go-test ## Run tests.
 
 .PHONY: fmt
 fmt: ## Run go fmt against code.
@@ -41,6 +40,10 @@ fmt: ## Run go fmt against code.
 .PHONY: lint
 lint: ## Run golangci-lint against code.
 	@./hack/golangci-lint.sh
+
+.PHONY: go-test
+go-test: ## Run go tests.
+	@./hack/test-integration.sh
 
 ##@ Build
 
