@@ -27,7 +27,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
-	"k8s.io/client-go/pkg/apis/clientauthentication/v1beta1"
+	clientauthenticationv1beta1 "k8s.io/client-go/pkg/apis/clientauthentication/v1beta1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/rest/fake"
 	"k8s.io/utils/clock/testing"
@@ -52,7 +52,7 @@ var _ = Describe("GetClientCertificate", func() {
 		out       *util.SafeBytesBuffer
 
 		shootCaData []byte
-		ec          v1beta1.ExecCredential
+		ec          clientauthenticationv1beta1.ExecCredential
 	)
 
 	BeforeEach(func() {
@@ -102,13 +102,13 @@ users:
 		epcRaw, err := json.Marshal(epc)
 		Expect(err).ToNot(HaveOccurred())
 
-		ec = v1beta1.ExecCredential{
+		ec = clientauthenticationv1beta1.ExecCredential{
 			TypeMeta: metav1.TypeMeta{
 				Kind:       "ExecCredential",
-				APIVersion: v1beta1.SchemeGroupVersion.String(),
+				APIVersion: clientauthenticationv1beta1.SchemeGroupVersion.String(),
 			},
-			Spec: v1beta1.ExecCredentialSpec{
-				Cluster: &v1beta1.Cluster{
+			Spec: clientauthenticationv1beta1.ExecCredentialSpec{
+				Cluster: &clientauthenticationv1beta1.Cluster{
 					Server:                   "https://api.mycluster.myproject.foo",
 					CertificateAuthorityData: shootCaData,
 					Config: runtime.RawExtension{
@@ -128,7 +128,7 @@ users:
 		BeforeEach(func() {
 			// valid GetClientCertificateOptions
 			o = c.GetClientCertificateOptions{
-				ShootCluster: &v1beta1.Cluster{
+				ShootCluster: &clientauthenticationv1beta1.Cluster{
 					Server:                   "foo",
 					CertificateAuthorityData: []byte("foo"),
 				},

@@ -21,7 +21,7 @@ import (
 	"github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	clientauthv1beta1 "k8s.io/client-go/pkg/apis/clientauthentication/v1beta1"
+	clientauthenticationv1beta1 "k8s.io/client-go/pkg/apis/clientauthentication/v1beta1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/auth/exec"
 	"k8s.io/client-go/tools/clientcmd"
@@ -81,7 +81,7 @@ type GetClientCertificateOptions struct {
 	// If nil the cluster of the current context from the kubeconfig returned by the "shoots/adminkubeconfig" subresource is used.
 	// TODO once we drop support for kubectl versions older than v1.20.0, this field should be made required
 	// +optional
-	ShootCluster *clientauthv1beta1.Cluster
+	ShootCluster *clientauthenticationv1beta1.Cluster
 	// ShootRef references the shoot cluster for which the client certificate credentials should be obtained
 	ShootRef ShootRef
 
@@ -164,7 +164,7 @@ func (o *GetClientCertificateOptions) Complete(f util.Factory, cmd *cobra.Comman
 			return err
 		}
 
-		cred, ok := obj.(*clientauthv1beta1.ExecCredential)
+		cred, ok := obj.(*clientauthenticationv1beta1.ExecCredential)
 		if !ok {
 			return fmt.Errorf("cannot convert to ExecCredential: %w", err)
 		}
@@ -268,7 +268,7 @@ func (o *GetClientCertificateOptions) RunGetClientCertificate(ctx context.Contex
 	return nil
 }
 
-func (o *GetClientCertificateOptions) getExecCredential(ctx context.Context, certificateCacheKey certificatecache.Key, cachedCertificateSet *certificatecache.CertificateSet) (*clientauthv1beta1.ExecCredential, error) {
+func (o *GetClientCertificateOptions) getExecCredential(ctx context.Context, certificateCacheKey certificatecache.Key, cachedCertificateSet *certificatecache.CertificateSet) (*clientauthenticationv1beta1.ExecCredential, error) {
 	if cachedCertificateSet != nil {
 		certPem, _ := pem.Decode(cachedCertificateSet.ClientCertificateData)
 		if certPem == nil {
@@ -287,12 +287,12 @@ func (o *GetClientCertificateOptions) getExecCredential(ctx context.Context, cer
 		if validNotBefore && validNotAfter {
 			klog.V(4).Info("valid certificate in cache")
 
-			return &clientauthv1beta1.ExecCredential{
+			return &clientauthenticationv1beta1.ExecCredential{
 				TypeMeta: metav1.TypeMeta{
-					APIVersion: clientauthv1beta1.SchemeGroupVersion.String(),
+					APIVersion: clientauthenticationv1beta1.SchemeGroupVersion.String(),
 					Kind:       "ExecCredential",
 				},
-				Status: &clientauthv1beta1.ExecCredentialStatus{
+				Status: &clientauthenticationv1beta1.ExecCredentialStatus{
 					ExpirationTimestamp:   &metav1.Time{Time: certificate.NotAfter},
 					ClientCertificateData: string(cachedCertificateSet.ClientCertificateData),
 					ClientKeyData:         string(cachedCertificateSet.ClientKeyData),
@@ -338,12 +338,12 @@ func (o *GetClientCertificateOptions) getExecCredential(ctx context.Context, cer
 		return nil, err
 	}
 
-	return &clientauthv1beta1.ExecCredential{
+	return &clientauthenticationv1beta1.ExecCredential{
 		TypeMeta: metav1.TypeMeta{
-			APIVersion: clientauthv1beta1.SchemeGroupVersion.String(),
+			APIVersion: clientauthenticationv1beta1.SchemeGroupVersion.String(),
 			Kind:       "ExecCredential",
 		},
-		Status: &clientauthv1beta1.ExecCredentialStatus{
+		Status: &clientauthenticationv1beta1.ExecCredentialStatus{
 			ExpirationTimestamp:   &adminKubeconfigRequest.Status.ExpirationTimestamp,
 			ClientCertificateData: string(certificateSet.ClientCertificateData),
 			ClientKeyData:         string(certificateSet.ClientKeyData),
@@ -370,7 +370,7 @@ func createAdminKubeconfigRequest(ctx context.Context, client rest.Interface, na
 	return result, nil
 }
 
-func authInfoFromKubeconfigForCluster(kubeconfig []byte, cluster *clientauthv1beta1.Cluster) (*api.AuthInfo, error) {
+func authInfoFromKubeconfigForCluster(kubeconfig []byte, cluster *clientauthenticationv1beta1.Cluster) (*api.AuthInfo, error) {
 	shootClientConfig, err := clientcmd.NewClientConfigFromBytes(kubeconfig)
 	if err != nil {
 		return nil, err
@@ -394,7 +394,7 @@ func authInfoFromKubeconfigForCluster(kubeconfig []byte, cluster *clientauthv1be
 	return authInfoFromConfigForUserName(config, userName)
 }
 
-func clusterNameFromConfigForCluster(config api.Config, cluster *clientauthv1beta1.Cluster) (string, error) {
+func clusterNameFromConfigForCluster(config api.Config, cluster *clientauthenticationv1beta1.Cluster) (string, error) {
 	if cluster == nil {
 		// fallback to cluster from current context (to support kubectl versions older v1.20.0)
 		context := config.Contexts[config.CurrentContext]
