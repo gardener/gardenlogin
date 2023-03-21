@@ -7,6 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package cmd
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
@@ -63,6 +64,9 @@ func init() {
 
 // initConfig reads in config file and ENV variables if set.
 func initConfig() {
+	ctx := context.Background()
+	logger := klog.FromContext(ctx)
+
 	if cfgFile != "" {
 		// Use config file from the flag.
 		viper.SetConfigFile(cfgFile)
@@ -92,10 +96,10 @@ func initConfig() {
 
 	// If a config file is found, read it in.
 	if err := readInConfig(); err != nil {
-		klog.Errorf("failed to read config file: %v", err)
+		logger.Error(err, "failed to read config file")
 	}
 
-	klog.V(4).Infof("Gardenlogin config loaded from file: %s", viper.ConfigFileUsed())
+	logger.V(4).Info("Loaded Gardenlogin config", "file", viper.ConfigFileUsed())
 
 	getClientCertificateCmd.Flags().VisitAll(func(flag *pflag.Flag) {
 		viperKey := strcase.ToLowerCamel(flag.Name)
@@ -104,7 +108,7 @@ func initConfig() {
 			envVarSuffix := strcase.ToScreamingSnake(flag.Name)
 			envVar := fmt.Sprintf("%s_%s", envPrefix, envVarSuffix)
 			if err := viper.BindEnv(viperKey, envVar); err != nil {
-				klog.Warningf("Failed to bind config key %s to env variable %s: %s\n", viperKey, envVar, err.Error())
+				logger.Info("Failed to bind config key to env variable", "key", viperKey, "env", envVar, "error", err.Error())
 			}
 		}
 
@@ -113,7 +117,7 @@ func initConfig() {
 			val := viper.Get(viperKey)
 			err := getClientCertificateCmd.Flags().Set(flag.Name, fmt.Sprintf("%v", val))
 			if err != nil {
-				klog.Warningf("Failed to set flag %s: %s\n", flag.Name, err.Error())
+				logger.Info("Failed to set flag", "flag", flag.Name, "error", err.Error())
 			}
 		}
 	})

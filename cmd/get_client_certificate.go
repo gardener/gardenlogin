@@ -106,9 +106,12 @@ type GetClientCertificateOptions struct {
 }
 
 func init() {
+	ctx := context.Background()
+	logger := klog.FromContext(ctx)
+
 	dir, err := homedir.Dir()
 	if err != nil {
-		klog.Errorf("could not determine home directory %v", err)
+		logger.Error(err, "could not determine home directory")
 	}
 
 	f := util.NewFactory(dir)
@@ -253,6 +256,8 @@ func (o *GetClientCertificateOptions) Validate() error {
 
 // RunGetClientCertificate obtains the ExecCredential and writes it to the out stream.
 func (o *GetClientCertificateOptions) RunGetClientCertificate(ctx context.Context) error {
+	logger := klog.FromContext(ctx)
+
 	// server is empty for kubectl versions older than v1.20.0 as the KUBERNETES_EXEC_INFO environment variable is not set
 	server := ""
 	if o.ShootCluster != nil {
@@ -268,7 +273,7 @@ func (o *GetClientCertificateOptions) RunGetClientCertificate(ctx context.Contex
 
 	cachedCertificateSet, err := o.CertificateCacheStore.FindByKey(certificateCacheKey)
 	if err != nil {
-		klog.V(4).Infof("could not find a cached certificate: %v", err)
+		logger.V(4).Info("could not find a cached certificate", "error", err.Error())
 	}
 
 	v1ExecCredential, err := o.getExecCredential(ctx, certificateCacheKey, cachedCertificateSet)
@@ -290,6 +295,8 @@ func (o *GetClientCertificateOptions) RunGetClientCertificate(ctx context.Contex
 }
 
 func (o *GetClientCertificateOptions) getExecCredential(ctx context.Context, certificateCacheKey certificatecache.Key, cachedCertificateSet *certificatecache.CertificateSet) (*clientauthenticationv1.ExecCredential, error) {
+	logger := klog.FromContext(ctx)
+
 	if cachedCertificateSet != nil {
 		certPem, _ := pem.Decode(cachedCertificateSet.ClientCertificateData)
 		if certPem == nil {
@@ -306,7 +313,7 @@ func (o *GetClientCertificateOptions) getExecCredential(ctx context.Context, cer
 		validNotAfter := now.Before(certificate.NotAfter.UTC())
 
 		if validNotBefore && validNotAfter {
-			klog.V(4).Info("valid certificate in cache")
+			logger.V(4).Info("valid certificate in cache")
 
 			return &clientauthenticationv1.ExecCredential{
 				TypeMeta: metav1.TypeMeta{
@@ -321,7 +328,7 @@ func (o *GetClientCertificateOptions) getExecCredential(ctx context.Context, cer
 			}, nil
 		}
 
-		klog.V(4).Info("the cached certificate is expired")
+		logger.V(4).Info("the cached certificate is expired")
 	}
 
 	adminKubeconfigRequest := &authenticationv1alpha1.AdminKubeconfigRequest{
