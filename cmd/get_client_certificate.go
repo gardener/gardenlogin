@@ -162,7 +162,7 @@ func NewCmdGetClientCertificate(f util.Factory, ioStreams util.IOStreams) *cobra
 }
 
 // Complete adapts from the command line args to the data required.
-func (o *GetClientCertificateOptions) Complete(f util.Factory, cmd *cobra.Command, args []string) error {
+func (o *GetClientCertificateOptions) Complete(f util.Factory, _ *cobra.Command, _ []string) error {
 	env := os.Getenv(execInfoEnv)
 	if env != "" { // KUBERNETES_EXEC_INFO env variable set for kubectl versions starting with v1.20.0
 		obj, _, err := exec.LoadExecCredential([]byte(env))
