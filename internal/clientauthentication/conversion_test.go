@@ -9,25 +9,11 @@ package clientauthentication_test
 import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"k8s.io/apimachinery/pkg/runtime"
 	clientauthenticationv1 "k8s.io/client-go/pkg/apis/clientauthentication/v1"
 	clientauthenticationv1beta1 "k8s.io/client-go/pkg/apis/clientauthentication/v1beta1"
-
-	"github.com/gardener/gardenlogin/internal/clientauthentication"
 )
 
 var _ = Describe("AddConversionFuncs", func() {
-	var scheme *runtime.Scheme
-
-	BeforeEach(func() {
-		scheme = runtime.NewScheme()
-
-		Expect(clientauthenticationv1beta1.AddToScheme(scheme)).To(Succeed())
-		Expect(clientauthenticationv1.AddToScheme(scheme)).To(Succeed())
-
-		Expect(clientauthentication.AddConversionFuncs(scheme)).To(Succeed())
-	})
-
 	It("should convert from v1beta1 to v1 ExecCredential type", func() {
 		// Create v1beta1 ExecCredential instance
 		v1beta1ExecCredential := &clientauthenticationv1beta1.ExecCredential{

@@ -17,7 +17,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/gardener/gardener/pkg/apis/authentication"
 	authenticationv1alpha1 "github.com/gardener/gardener/pkg/apis/authentication/v1alpha1"
 	"github.com/gardener/gardener/pkg/utils/secrets"
 	"github.com/gardener/gardener/pkg/utils/test"
@@ -37,7 +36,6 @@ import (
 	c "github.com/gardener/gardenlogin/cmd"
 	"github.com/gardener/gardenlogin/internal/certificatecache"
 	"github.com/gardener/gardenlogin/internal/certificatecache/store"
-	"github.com/gardener/gardenlogin/internal/clientauthentication"
 	"github.com/gardener/gardenlogin/internal/cmd/util"
 )
 
@@ -60,17 +58,7 @@ var _ = Describe("GetClientCertificate", func() {
 	)
 
 	BeforeEach(func() {
-		scheme := clientgoscheme.Scheme
-
-		Expect(authenticationv1alpha1.AddToScheme(scheme)).To(Succeed())
-		Expect(authentication.AddToScheme(scheme)).To(Succeed())
-
-		Expect(clientauthenticationv1beta1.AddToScheme(scheme)).To(Succeed())
-		Expect(clientauthenticationv1.AddToScheme(scheme)).To(Succeed())
-
-		Expect(clientauthentication.AddConversionFuncs(scheme)).To(Succeed())
-
-		codecs = serializer.NewCodecFactory(scheme)
+		codecs = serializer.NewCodecFactory(clientgoscheme.Scheme)
 		codec = codecs.LegacyCodec(authenticationv1alpha1.SchemeGroupVersion)
 
 		ioStreams, _, out, errOut = util.NewTestIOStreams()
