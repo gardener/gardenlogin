@@ -55,6 +55,8 @@ ln -s /usr/local/bin/gardenlogin /usr/local/bin/kubectl-gardenlogin
 
 If no configuration file is found, it falls back to the `gardenctl-v2` configuration file (`~/.garden/gardenctl-v2.yaml`) which shares the same configuration properties.
 
+**Hint:** If you intend to use both `gardenlogin` and [gardenctl-v2](https://github.com/gardener/gardenctl-v2/), it is recommended to store the configuration file in `~/.garden/gardenctl-v2.yaml`. This allows both applications to share a single configuration.
+
 ### Example Config
 ```yaml
 gardens:
