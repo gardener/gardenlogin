@@ -48,11 +48,15 @@ go-test: ## Run go tests.
 ##@ Build
 
 .PHONY: build
-build: build-darwin-amd64 build-darwin-arm64 build-linux build-windows ## Build gardenlogin binary for darwin, linux and windows.
+build: build-darwin-amd64 build-darwin-arm64 build-linux-amd64 build-linux-arm64 build-windows-amd64  ## Build gardenlogin binary for darwin, linux and windows.
 
-.PHONY: build-linux
-build-linux: ## Build gardenlogin binary for linux.
+.PHONY: build-linux-amd64
+build-linux-amd64: ## Build gardenlogin binary for Linux on Intel processors.
 	@./hack/build-linux-amd64.sh
+
+.PHONY: build-linux-arm64
+build-linux-arm64: ## Build gardenlogin binary for Linux on ARM processors.
+	@./hack/build-linux-arm64.sh
 
 .PHONY: build-darwin-amd64
 build-darwin-amd64: ## Build gardenlogin binary for darwin on Intel processors.
@@ -62,6 +66,6 @@ build-darwin-amd64: ## Build gardenlogin binary for darwin on Intel processors.
 build-darwin-arm64: ## Build gardenlogin binary for darwin on Apple Silicon processors.
 	@./hack/build-darwin-arm64.sh
 
-.PHONY: build-windows
-build-windows: ## Build gardenlogin binary for windows.
+.PHONY: build-windows-amd64
+build-windows-amd64: ## Build gardenlogin binary for Windows on Intel processors.
 	@./hack/build-windows-amd64.sh
