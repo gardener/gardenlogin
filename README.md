@@ -118,8 +118,8 @@ An example `kubeconfig` supporting `kubectl` version `v1.11.0` onwards can be fo
 The following describes the flow to authenticate against a `Shoot` cluster as cluster admin:
 
 1. The user would either download the `Shoot` cluster `kubeconfig`
-    - using the `gardener/dashboard` (TODO)
-    - by targeting the cluster with `gardenctl`
+    - using the `gardener/dashboard` (refer to [connect-kubectl.md#download-from-dashboard](https://github.com/gardener/dashboard/blob/master/docs/usage/connect-kubectl.md#download-from-dashboard))
+    - by targeting the cluster with `gardenctl` (refer to [connect-kubectl.md#copy-and-run-gardenctl-target-command](https://github.com/gardener/dashboard/blob/master/docs/usage/connect-kubectl.md#copy-and-run-gardenctl-target-command))
     - or using `gardenctl kubeconfig --raw --garden landscape-dev --project my-project --shoot my-shoot` to print the kubeconfig for the respective target cluster
 2. `kubectl` is then configured to use the downloaded `kubeconfig` for the shoot cluster
 3. A `kubectl` command is executed, e.g. `kubectl get namespaces`
