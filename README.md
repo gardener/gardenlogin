@@ -5,9 +5,13 @@
 [![release](https://badge.fury.io/gh/gardener%2Fgardenlogin.svg)](https://badge.fury.io/gh/gardener%2Fgardenlogin)
 [![reuse compliant](https://reuse.software/badge/reuse-compliant.svg)](https://reuse.software/)
 
-`gardenlogin`s `get-client-certificate` command can be used as a `kubectl` [credential plugin](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#client-go-credential-plugins). It fetches the `cluster-admin` credentials from the API introduced with [GEP-16](https://github.com/gardener/gardener/blob/master/docs/proposals/16-adminkubeconfig-subresource.md). See more details under [Authentication Flow](#authentication-flow)
+The `gardenlogin`s `get-client-certificate` command can be used as a `kubectl` [credential plugin](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#client-go-credential-plugins). It supports fetching credentials from two subresources: [`shoots/adminkubeconfig`](https://github.com/gardener/gardener/blob/master/docs/proposals/16-adminkubeconfig-subresource.md) and `shoots/viewerkubeconfig`
 
-With GEP-16, users are able to generate kubeconfigs for `Shoot` clusters with short-lived certificates, to access the cluster as `cluster-admin`.
+By default, the plugin retrieves credentials from the `shoots/adminkubeconfig` subresource, granting full administrative access. Alternatively, it can fetch credentials from the `shoots/viewerkubeconfig` subresource for read-only access.
+
+The level of access for the fetched credentials can be controlled using the `--access-level` flag. This flag supports three options: `auto`, `admin`, and `viewer`. The default option is `auto`, which first attempts to fetch admin-level credentials and falls back to viewer-level credentials if the former is unsuccessful.
+
+For more information on how the plugin operates, refer to the [Authentication Flow](#authentication-flow) section.
 
 ## Installation
 

@@ -20,8 +20,10 @@ import (
 	gardenscheme "github.com/gardener/gardener/pkg/client/core/clientset/versioned/scheme"
 	"github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
 	clientauthenticationv1 "k8s.io/client-go/pkg/apis/clientauthentication/v1"
 	clientauthenticationv1beta1 "k8s.io/client-go/pkg/apis/clientauthentication/v1beta1"
@@ -30,13 +32,21 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
 	"k8s.io/klog/v2"
+	"k8s.io/utils/pointer"
+	"k8s.io/utils/strings/slices"
 
 	"github.com/gardener/gardenlogin/internal/certificatecache"
 	"github.com/gardener/gardenlogin/internal/certificatecache/store"
 	"github.com/gardener/gardenlogin/internal/cmd/util"
 )
 
-const execInfoEnv = "KUBERNETES_EXEC_INFO"
+const (
+	execInfoEnv = "KUBERNETES_EXEC_INFO"
+
+	accessLevelAuto   = "auto"
+	accessLevelAdmin  = "admin"
+	accessLevelViewer = "viewer"
+)
 
 var (
 	ioStreams = util.IOStreams{
@@ -47,6 +57,11 @@ var (
 	// getClientCertificateCmd represents the getClientCertificate command.
 	getClientCertificateCmd *cobra.Command
 )
+
+type kubeconfigRequestStatus struct {
+	kubeconfig          []byte
+	expirationTimestamp metav1.Time
+}
 
 // ExecPluginConfig contains additional data which is needed for the
 // gardenlogin plugin to authenticate against the shoot cluster.
@@ -101,8 +116,11 @@ type GetClientCertificateOptions struct {
 	// CertificateCacheDir is the directory of the certificate cache
 	CertificateCacheDir string
 
-	// AdminKubeconfigExpirationSeconds defines the validity duration of the requested credential
-	AdminKubeconfigExpirationSeconds int64
+	// KubeconfigExpirationSeconds defines the validity duration of the requested credential
+	KubeconfigExpirationSeconds int64
+
+	// AccessLevel specifies the user access level for the requested credential
+	AccessLevel string
 }
 
 func init() {
@@ -134,6 +152,7 @@ const (
 	flagNamespace             = "namespace"
 	flagCertificateCacheDir   = "certificate-cache-dir"
 	flagExpirationSeconds     = "expiration-seconds"
+	flagAccessLevel           = "access-level"
 )
 
 // NewCmdGetClientCertificate returns the get-client-certificate cobra.Command.
@@ -159,7 +178,15 @@ func NewCmdGetClientCertificate(f util.Factory, ioStreams util.IOStreams) *cobra
 	cmd.Flags().StringVar(&o.ShootRef.Namespace, flagNamespace, "", "Namespace of the shoot cluster")
 	cmd.Flags().StringVar(&o.GardenClusterIdentity, flagGardenClusterIdentity, "", "Cluster identity of the garden cluster")
 	cmd.Flags().StringVar(&o.CertificateCacheDir, flagCertificateCacheDir, filepath.Join(f.HomeDir(), ".kube", "cache", "gardenlogin"), "Directory of the certificate cache")
-	cmd.Flags().Int64Var(&o.AdminKubeconfigExpirationSeconds, flagExpirationSeconds, 900, "Validity duration of the requested credential")
+	cmd.Flags().Int64Var(&o.KubeconfigExpirationSeconds, flagExpirationSeconds, 900, "Validity duration of the requested credential")
+	cmd.Flags().StringVar(&o.AccessLevel, flagAccessLevel, accessLevelAuto, `Defines the access level of the credential returned by the plugin. Can be "auto", "admin", or "viewer".
+	"auto" - Attempts to obtain admin-level credentials. If unsuccessful, it defaults to viewer-level credentials.
+	"admin" - Returns a credential with cluster-admin privileges.
+	"viewer" - Returns a credential with read-only access to non-encrypted API resources.`)
+
+	utilruntime.Must(cmd.RegisterFlagCompletionFunc(flagAccessLevel, func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		return o.AllowedAccessLevels(), cobra.ShellCompDirectiveNoFileComp
+	}))
 
 	return cmd
 }
@@ -222,6 +249,10 @@ func (o *GetClientCertificateOptions) Complete(f util.Factory, _ *cobra.Command,
 		}
 	}
 
+	if o.AccessLevel == "" {
+		o.AccessLevel = accessLevelAuto
+	}
+
 	o.Clock = f.Clock()
 
 	return nil
@@ -251,6 +282,10 @@ func (o *GetClientCertificateOptions) Validate() error {
 		return errors.New("garden cluster identity must be specified")
 	}
 
+	if !slices.Contains(o.AllowedAccessLevels(), o.AccessLevel) {
+		return fmt.Errorf("invalid access level: %s. Access level must be one of %v", o.AccessLevel, o.AllowedAccessLevels())
+	}
+
 	return nil
 }
 
@@ -269,6 +304,7 @@ func (o *GetClientCertificateOptions) RunGetClientCertificate(ctx context.Contex
 		ShootName:             o.ShootRef.Name,
 		ShootNamespace:        o.ShootRef.Namespace,
 		GardenClusterIdentity: o.GardenClusterIdentity,
+		AccessLevel:           o.AccessLevel,
 	}
 
 	cachedCertificateSet, err := o.CertificateCacheStore.FindByKey(certificateCacheKey)
@@ -331,29 +367,12 @@ func (o *GetClientCertificateOptions) getExecCredential(ctx context.Context, cer
 		logger.V(4).Info("the cached certificate is expired")
 	}
 
-	adminKubeconfigRequest := &authenticationv1alpha1.AdminKubeconfigRequest{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "AdminKubeconfigRequest",
-			APIVersion: authenticationv1alpha1.SchemeGroupVersion.String(),
-		},
-		Spec: authenticationv1alpha1.AdminKubeconfigRequestSpec{
-			ExpirationSeconds: &o.AdminKubeconfigExpirationSeconds,
-		},
-	}
-
-	adminKubeconfigRequest, err := createAdminKubeconfigRequest(
-		ctx,
-		o.GardenCoreV1Beta1RESTClient,
-		o.ShootRef.Namespace,
-		o.ShootRef.Name,
-		adminKubeconfigRequest,
-		metav1.CreateOptions{},
-	)
+	kubeconfigRequest, err := o.createKubeconfigRequest(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to request admin kubeconfig: %w", err)
+		return nil, fmt.Errorf("failed to request kubeconfig with access level %s: %w", o.AccessLevel, err)
 	}
 
-	userConfig, err := authInfoFromKubeconfigForCluster(adminKubeconfigRequest.Status.Kubeconfig, o.ShootCluster)
+	userConfig, err := authInfoFromKubeconfigForCluster(kubeconfigRequest.kubeconfig, o.ShootCluster)
 	if err != nil {
 		return nil, fmt.Errorf("could not find matching auth info from shoot kubeconfig for given cluster: %w", err)
 	}
@@ -372,15 +391,88 @@ func (o *GetClientCertificateOptions) getExecCredential(ctx context.Context, cer
 			Kind:       "ExecCredential",
 		},
 		Status: &clientauthenticationv1.ExecCredentialStatus{
-			ExpirationTimestamp:   &adminKubeconfigRequest.Status.ExpirationTimestamp,
+			ExpirationTimestamp:   &kubeconfigRequest.expirationTimestamp,
 			ClientCertificateData: string(certificateSet.ClientCertificateData),
 			ClientKeyData:         string(certificateSet.ClientKeyData),
 		},
 	}, nil
 }
 
-func createAdminKubeconfigRequest(ctx context.Context, client rest.Interface, namespace string, shootName string, adminKubeconfigRequest *authenticationv1alpha1.AdminKubeconfigRequest, opts metav1.CreateOptions) (*authenticationv1alpha1.AdminKubeconfigRequest, error) {
-	result := &authenticationv1alpha1.AdminKubeconfigRequest{}
+func (o *GetClientCertificateOptions) createKubeconfigRequest(ctx context.Context) (*kubeconfigRequestStatus, error) {
+	logger := klog.FromContext(ctx)
+
+	switch o.AccessLevel {
+	case accessLevelAdmin:
+		return createAdminKubeconfigRequest(
+			ctx,
+			o.GardenCoreV1Beta1RESTClient,
+			o.ShootRef.Namespace,
+			o.ShootRef.Name,
+			o.KubeconfigExpirationSeconds,
+			metav1.CreateOptions{},
+		)
+	case accessLevelViewer:
+		return createViewerKubeconfigRequest(
+			ctx,
+			o.GardenCoreV1Beta1RESTClient,
+			o.ShootRef.Namespace,
+			o.ShootRef.Name,
+			o.KubeconfigExpirationSeconds,
+			metav1.CreateOptions{},
+		)
+	case accessLevelAuto:
+		kubeconfigRequest, err := createAdminKubeconfigRequest(
+			ctx,
+			o.GardenCoreV1Beta1RESTClient,
+			o.ShootRef.Namespace,
+			o.ShootRef.Name,
+			o.KubeconfigExpirationSeconds,
+			metav1.CreateOptions{},
+		)
+
+		if err == nil {
+			return kubeconfigRequest, nil
+		}
+
+		if !apierrors.IsForbidden(err) {
+			return nil, err
+		}
+
+		logger.Info("No permission to obtain admin kubeconfig. Falling back to obtaining viewer kubeconfig.", "error", err)
+
+		kubeconfigRequest, err = createViewerKubeconfigRequest(
+			ctx,
+			o.GardenCoreV1Beta1RESTClient,
+			o.ShootRef.Namespace,
+			o.ShootRef.Name,
+			o.KubeconfigExpirationSeconds,
+			metav1.CreateOptions{},
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to obtain either admin or viewer kubeconfig: %w", err)
+		}
+
+		return kubeconfigRequest, nil
+	default:
+		return nil, fmt.Errorf("invalid access level: %s", o.AccessLevel)
+	}
+}
+
+// AllowedAccessLevels returns the allowed values for the access-level flag.
+func (o *GetClientCertificateOptions) AllowedAccessLevels() []string {
+	return []string{accessLevelAuto, accessLevelAdmin, accessLevelViewer}
+}
+
+func createAdminKubeconfigRequest(ctx context.Context, client rest.Interface, namespace string, shootName string, expirationSeconds int64, opts metav1.CreateOptions) (*kubeconfigRequestStatus, error) {
+	adminKubeconfigRequest := &authenticationv1alpha1.AdminKubeconfigRequest{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "AdminKubeconfigRequest",
+			APIVersion: authenticationv1alpha1.SchemeGroupVersion.String(),
+		},
+		Spec: authenticationv1alpha1.AdminKubeconfigRequestSpec{
+			ExpirationSeconds: pointer.Int64(expirationSeconds),
+		},
+	}
 
 	err := client.Post().
 		Namespace(namespace).
@@ -390,12 +482,49 @@ func createAdminKubeconfigRequest(ctx context.Context, client rest.Interface, na
 		VersionedParams(&opts, gardenscheme.ParameterCodec).
 		Body(adminKubeconfigRequest).
 		Do(ctx).
-		Into(result)
+		Into(adminKubeconfigRequest)
 	if err != nil {
 		return nil, err
 	}
 
-	return result, nil
+	kubeconfigRequest := kubeconfigRequestStatus{
+		kubeconfig:          adminKubeconfigRequest.Status.Kubeconfig,
+		expirationTimestamp: adminKubeconfigRequest.Status.ExpirationTimestamp,
+	}
+
+	return &kubeconfigRequest, nil
+}
+
+func createViewerKubeconfigRequest(ctx context.Context, client rest.Interface, namespace string, shootName string, expirationSeconds int64, opts metav1.CreateOptions) (*kubeconfigRequestStatus, error) {
+	viewerKubeconfigRequest := &authenticationv1alpha1.ViewerKubeconfigRequest{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "ViewerKubeconfigRequest",
+			APIVersion: authenticationv1alpha1.SchemeGroupVersion.String(),
+		},
+		Spec: authenticationv1alpha1.ViewerKubeconfigRequestSpec{
+			ExpirationSeconds: pointer.Int64(expirationSeconds),
+		},
+	}
+
+	err := client.Post().
+		Namespace(namespace).
+		Resource("shoots").
+		Name(shootName).
+		SubResource("viewerkubeconfig").
+		VersionedParams(&opts, gardenscheme.ParameterCodec).
+		Body(viewerKubeconfigRequest).
+		Do(ctx).
+		Into(viewerKubeconfigRequest)
+	if err != nil {
+		return nil, err
+	}
+
+	kubeconfigRequest := kubeconfigRequestStatus{
+		kubeconfig:          viewerKubeconfigRequest.Status.Kubeconfig,
+		expirationTimestamp: viewerKubeconfigRequest.Status.ExpirationTimestamp,
+	}
+
+	return &kubeconfigRequest, nil
 }
 
 func authInfoFromKubeconfigForCluster(kubeconfig []byte, cluster *clientauthenticationv1.Cluster) (*api.AuthInfo, error) {

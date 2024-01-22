@@ -17,6 +17,8 @@ type Key struct {
 	// GardenClusterIdentity is the cluster identity of the garden cluster.
 	// See cluster-identity ConfigMap in kube-system namespace of the garden cluster
 	GardenClusterIdentity string
+	// AccessLevel specifies the user access level for the requested credential
+	AccessLevel string
 }
 
 // CertificateSet represents a set of client certificate and client key.
