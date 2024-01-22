@@ -112,7 +112,7 @@ users:
       - get-client-certificate
 ```
 
-An example `kubeconfig` supporting `kubectl` version `v1.11.0` onwards can be found under [example/02-kubeconfig.yaml](example/01-kubeconfig-legacy.yaml).
+An example `kubeconfig` supporting `kubectl` version `v1.11.0` onwards can be found under [example/01-kubeconfig-legacy.yaml](example/01-kubeconfig-legacy.yaml).
 
 ## Authentication Flow
 The following describes the flow to authenticate against a `Shoot` cluster as cluster admin:
