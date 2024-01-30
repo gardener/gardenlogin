@@ -430,28 +430,27 @@ func (o *GetClientCertificateOptions) createKubeconfigRequest(ctx context.Contex
 			metav1.CreateOptions{},
 		)
 
-		if err == nil {
-			return kubeconfigRequest, nil
+		if apierrors.IsForbidden(err) {
+			logger.Info("No permission to obtain admin kubeconfig. Falling back to obtaining viewer kubeconfig.", "error", err)
+
+			kubeconfigRequest, err = createViewerKubeconfigRequest(
+				ctx,
+				o.GardenCoreV1Beta1RESTClient,
+				o.ShootRef.Namespace,
+				o.ShootRef.Name,
+				o.KubeconfigExpirationSeconds,
+				metav1.CreateOptions{},
+			)
+			if apierrors.IsForbidden(err) {
+				return nil, fmt.Errorf("no permission to obtain either admin or viewer kubeconfig: %w", err)
+			}
 		}
 
-		if !apierrors.IsForbidden(err) {
+		if err != nil {
 			return nil, err
 		}
 
-		logger.Info("No permission to obtain admin kubeconfig. Falling back to obtaining viewer kubeconfig.", "error", err)
-
-		kubeconfigRequest, err = createViewerKubeconfigRequest(
-			ctx,
-			o.GardenCoreV1Beta1RESTClient,
-			o.ShootRef.Namespace,
-			o.ShootRef.Name,
-			o.KubeconfigExpirationSeconds,
-			metav1.CreateOptions{},
-		)
-		if err != nil {
-			return nil, fmt.Errorf("failed to obtain either admin or viewer kubeconfig: %w", err)
-		}
-
+		// Return the kubeconfigRequest which might be either admin or viewer type.
 		return kubeconfigRequest, nil
 	default:
 		return nil, fmt.Errorf("invalid access level: %s", o.AccessLevel)
