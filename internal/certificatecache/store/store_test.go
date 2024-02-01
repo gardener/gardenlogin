@@ -37,6 +37,7 @@ var _ = Describe("Store", func() {
 				ShootName:             "mycluster",
 				ShootNamespace:        "garden-myproject",
 				GardenClusterIdentity: "landscape-dev",
+				AccessLevel:           "viewer",
 			}
 			json := "{\"clientCertificateData\":\"Zm9v\",\"clientKeyData\":\"YmFy\"}"
 			filename, err := generateFilename(key)
@@ -60,6 +61,7 @@ var _ = Describe("Store", func() {
 				ShootName:             "mycluster",
 				ShootNamespace:        "garden-myproject",
 				GardenClusterIdentity: "landscape-dev",
+				AccessLevel:           "viewer",
 			}
 			certificateSet := certificatecache.CertificateSet{ClientCertificateData: []byte("foo"), ClientKeyData: []byte("bar")}
 			Expect(s.Save(key, certificateSet)).To(Succeed())

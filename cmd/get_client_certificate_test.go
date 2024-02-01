@@ -41,10 +41,6 @@ import (
 
 var _ = Describe("GetClientCertificate", func() {
 	var (
-		codecs serializer.CodecFactory
-		codec  runtime.Codec
-
-		kubeconfig     string
 		expirationTime time.Time
 		validity       time.Duration
 
@@ -58,32 +54,8 @@ var _ = Describe("GetClientCertificate", func() {
 	)
 
 	BeforeEach(func() {
-		codecs = serializer.NewCodecFactory(clientgoscheme.Scheme)
-		codec = codecs.LegacyCodec(authenticationv1alpha1.SchemeGroupVersion)
-
 		ioStreams, _, out, errOut = util.NewTestIOStreams()
 
-		kubeconfig = `
-apiVersion: v1
-clusters:
-- cluster:
-    certificate-authority-data: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCi4uLgotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0t
-    server: https://api.mycluster.myproject.foo
-  name: shoot--myproject--mycluster
-contexts:
-- context:
-    cluster: shoot--myproject--mycluster
-    user: shoot--myproject--mycluster
-  name: shoot--myproject--mycluster
-current-context: shoot--myproject--mycluster
-kind: Config
-preferences: {}
-users:
-- name: shoot--myproject--mycluster
-  user:
-    client-certificate-data: Zm9v
-    client-key-data: YmFy
-`
 		validity = 10 * time.Minute
 		expirationTime = fakeNow().Add(10 * time.Minute)
 
@@ -150,8 +122,9 @@ users:
 					Namespace: "foo",
 					Name:      "foo",
 				},
-				GardenClusterIdentity:            "foo",
-				AdminKubeconfigExpirationSeconds: 42,
+				GardenClusterIdentity:       "foo",
+				KubeconfigExpirationSeconds: 42,
+				AccessLevel:                 "admin",
 			}
 			gotErr = nil
 			wantErrStr = ""
@@ -189,9 +162,17 @@ users:
 					It("should not report an error", AssertSuccess())
 				})
 			})
+
+			Describe("when access level is set to viewer", func() {
+				BeforeEach(func() {
+					o.AccessLevel = "viewer"
+					gotErr = o.Validate()
+				})
+				It("should not report an error", AssertSuccess())
+			})
 		})
 
-		Context("should not report an error on invalid options", func() {
+		Context("should report an error on invalid options", func() {
 			Describe("when name is not set", func() {
 				BeforeEach(func() {
 					o.ShootRef.Name = ""
@@ -241,6 +222,15 @@ users:
 					})
 					It("should report an error", AssertError())
 				})
+
+				Describe("when access level is not valid", func() {
+					BeforeEach(func() {
+						o.AccessLevel = "invalidAccessLevel"
+						gotErr = o.Validate()
+						wantErrStr = "invalid access level: invalidAccessLevel. Access level must be one of [auto admin viewer]"
+					})
+					It("should report an error", AssertError())
+				})
 			})
 		})
 	})
@@ -263,6 +253,7 @@ users:
 				ShootName:             "mycluster",
 				ShootNamespace:        "garden-myproject",
 				GardenClusterIdentity: "landscape-dev",
+				AccessLevel:           "auto",
 			}
 
 			f = &TestFactory{
@@ -278,39 +269,7 @@ users:
 			caCert = generateCaCert()
 			clientCert = generateClientCert(caCert, validity)
 
-			response := &authenticationv1alpha1.AdminKubeconfigRequest{
-				Status: authenticationv1alpha1.AdminKubeconfigRequestStatus{
-					Kubeconfig:          []byte(kubeconfig),
-					ExpirationTimestamp: metav1.Time{Time: expirationTime},
-				},
-			}
-			restClient = &fake.RESTClient{
-				GroupVersion: struct {
-					Group   string
-					Version string
-				}{Group: "", Version: "v1"},
-				NegotiatedSerializer: codecs.WithoutConversion(),
-				Client: fake.CreateHTTPClient(func(req *http.Request) (*http.Response, error) {
-					switch req.Method {
-					case "POST":
-						switch req.URL.Path {
-						case "/namespaces/garden-myproject/shoots/mycluster/adminkubeconfig":
-							bodyAkr := &authenticationv1alpha1.AdminKubeconfigRequest{}
-							BodyIntoObj(codec, req.Body, bodyAkr)
-							wantExpirationSeconds := int64(42)
-							Expect(bodyAkr.Spec.ExpirationSeconds).To(Equal(&wantExpirationSeconds))
-
-							return &http.Response{StatusCode: http.StatusOK, Header: DefaultHeader(), Body: ObjBody(codec, response)}, nil
-						default:
-							Fail(fmt.Sprintf("unexpected request: %#v\n%#v", req.URL, req))
-							return nil, nil
-						}
-					default:
-						Fail(fmt.Sprintf("unexpected request: %s %#v\n%#v", req.Method, req.URL, req))
-						return nil, nil
-					}
-				}),
-			}
+			restClient = fakeKubeconfigRESTClient(expirationTime, nil)
 		})
 
 		Context("KUBERNETES_EXEC_INFO is set", func() {
@@ -319,7 +278,7 @@ users:
 			})
 
 			DescribeTable("Should return cached client certificate",
-				func(version string, execCredential interface{}) {
+				func(version string, accessLevel string, execCredential interface{}) {
 					By(fmt.Sprintf("using %s", version))
 
 					execInfo, err := json.Marshal(execCredential)
@@ -334,6 +293,7 @@ users:
 						ClientCertificateData: clientCert.CertificatePEM,
 						ClientKeyData:         clientCert.PrivateKeyPEM,
 					}
+					storeKey.AccessLevel = accessLevel
 					f.store.inMemory[storeKey] = struct {
 						certificateSet *certificatecache.CertificateSet
 						err            error
@@ -343,6 +303,9 @@ users:
 					}
 
 					By("executing the command")
+					Expect(cmd.ParseFlags([]string{
+						fmt.Sprintf("--access-level=%s", accessLevel),
+					})).To(Succeed())
 					Expect(cmd.Execute()).To(Succeed())
 
 					By("Expecting cached certificate to be printed to out buffer")
@@ -356,11 +319,13 @@ users:
 					)))
 					Expect(errOut.String()).To(BeEmpty())
 				},
-				Entry("v1beta1ExecCredential", "v1beta1", &v1beta1ExecCredential),
-				Entry("v1ExecCredential", "v1", &v1ExecCredential),
+				Entry("v1beta1ExecCredential (admin)", "v1beta1", "admin", &v1beta1ExecCredential),
+				Entry("v1ExecCredential (admin)", "v1", "admin", &v1ExecCredential),
+				Entry("v1ExecCredential (viewer)", "v1", "viewer", &v1ExecCredential),
+				Entry("v1ExecCredential (auto)", "v1", "auto", &v1ExecCredential),
 			)
 
-			DescribeTable("Should fetch the client certificate",
+			DescribeTable("Should fetch the client certificate for v1 and v1beta1 ExecCredentials",
 				func(version string, execCredential interface{}) {
 					By(fmt.Sprintf("using %s", version))
 
@@ -381,15 +346,15 @@ users:
 `,
 						version,
 						expirationTime.Format(time.RFC3339),
-						"foo",
-						"bar",
+						"admin",
+						"key",
 					)))
 					Expect(errOut.String()).To(BeEmpty())
 
 					By("Expecting certificate to be stored in cache")
 					wantCertificateSet := certificatecache.CertificateSet{
-						ClientCertificateData: []byte("foo"),
-						ClientKeyData:         []byte("bar"),
+						ClientCertificateData: []byte("admin"),
+						ClientKeyData:         []byte("key"),
 					}
 					Expect(f.store.inMemory[storeKey]).To(Equal(struct {
 						certificateSet *certificatecache.CertificateSet
@@ -401,6 +366,53 @@ users:
 				},
 				Entry("v1ExecCredential", "v1", &v1ExecCredential),
 				Entry("v1beta1ExecCredential", "v1beta1", &v1beta1ExecCredential),
+			)
+
+			DescribeTable("Should fetch the client certificate for different access levels",
+				func(accessLevel string, clientCertificateData string, forbiddenPaths []string) {
+					execInfo, err := json.Marshal(&v1ExecCredential)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(os.Setenv("KUBERNETES_EXEC_INFO", string(execInfo))).To(Succeed())
+
+					By("By using fake RESTClient")
+					f.restClient = fakeKubeconfigRESTClient(expirationTime, forbiddenPaths)
+
+					By("executing the command")
+					Expect(cmd.ParseFlags([]string{
+						"--expiration-seconds=42",
+						fmt.Sprintf("--access-level=%s", accessLevel),
+					})).To(Succeed())
+					Expect(cmd.Execute()).To(Succeed())
+
+					By("Expecting certificate to be printed to out buffer")
+					Expect(out.String()).To(Equal(fmt.Sprintf(
+						`{"kind":"ExecCredential","apiVersion":"client.authentication.k8s.io/v1","spec":{"interactive":false},"status":{"expirationTimestamp":%q,"clientCertificateData":%q,"clientKeyData":%q}}
+`,
+						expirationTime.Format(time.RFC3339),
+						clientCertificateData,
+						"key",
+					)))
+					Expect(errOut.String()).To(BeEmpty())
+
+					By("Expecting certificate to be stored in cache")
+					wantCertificateSet := certificatecache.CertificateSet{
+						ClientCertificateData: []byte(clientCertificateData),
+						ClientKeyData:         []byte("key"),
+					}
+
+					storeKey.AccessLevel = accessLevel
+					Expect(f.store.inMemory[storeKey]).To(Equal(struct {
+						certificateSet *certificatecache.CertificateSet
+						err            error
+					}{
+						certificateSet: &wantCertificateSet,
+						err:            nil,
+					}))
+				},
+				Entry("admin should fetch admin credential", "admin", "admin", nil),
+				Entry("viewer should fetch viewer credential", "viewer", "viewer", nil),
+				Entry("auto should fallback to viewer credential", "auto", "admin", nil),
+				Entry("auto should fallback to viewer credential", "auto", "viewer", []string{"/namespaces/garden-myproject/shoots/mycluster/adminkubeconfig"}),
 			)
 		})
 
@@ -466,15 +478,15 @@ users:
 					`{"kind":"ExecCredential","apiVersion":"client.authentication.k8s.io/v1beta1","spec":{"interactive":false},"status":{"expirationTimestamp":%q,"clientCertificateData":%q,"clientKeyData":%q}}
 `,
 					expirationTime.Format(time.RFC3339),
-					"foo",
-					"bar",
+					"admin",
+					"key",
 				)))
 				Expect(errOut.String()).To(BeEmpty())
 
 				By("Expecting certificate to be stored in cache")
 				wantCertificateSet := certificatecache.CertificateSet{
-					ClientCertificateData: []byte("foo"),
-					ClientKeyData:         []byte("bar"),
+					ClientCertificateData: []byte("admin"),
+					ClientKeyData:         []byte("key"),
 				}
 				Expect(f.store.inMemory[storeKey]).To(Equal(struct {
 					certificateSet *certificatecache.CertificateSet
@@ -487,6 +499,120 @@ users:
 		})
 	})
 })
+
+func fakeKubeconfigRESTClient(expirationTime time.Time, forbiddenPaths []string) *fake.RESTClient {
+	codecs := serializer.NewCodecFactory(clientgoscheme.Scheme)
+	codec := codecs.LegacyCodec(authenticationv1alpha1.SchemeGroupVersion)
+
+	adminKubeconfig := `
+apiVersion: v1
+clusters:
+- cluster:
+    certificate-authority-data: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCi4uLgotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0t
+    server: https://api.mycluster.myproject.foo
+  name: shoot--myproject--mycluster
+contexts:
+- context:
+    cluster: shoot--myproject--mycluster
+    user: shoot--myproject--mycluster
+  name: shoot--myproject--mycluster
+current-context: shoot--myproject--mycluster
+kind: Config
+preferences: {}
+users:
+- name: shoot--myproject--mycluster
+  user:
+    client-certificate-data: YWRtaW4=
+    client-key-data: a2V5
+`
+
+	viewerKubeconfig := `
+apiVersion: v1
+clusters:
+- cluster:
+    certificate-authority-data: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCi4uLgotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0t
+    server: https://api.mycluster.myproject.foo
+  name: shoot--myproject--mycluster
+contexts:
+- context:
+    cluster: shoot--myproject--mycluster
+    user: shoot--myproject--mycluster
+  name: shoot--myproject--mycluster
+current-context: shoot--myproject--mycluster
+kind: Config
+preferences: {}
+users:
+- name: shoot--myproject--mycluster
+  user:
+    client-certificate-data: dmlld2Vy
+    client-key-data: a2V5
+`
+
+	adminKubeconfigResponse := &authenticationv1alpha1.AdminKubeconfigRequest{
+		Status: authenticationv1alpha1.AdminKubeconfigRequestStatus{
+			Kubeconfig:          []byte(adminKubeconfig),
+			ExpirationTimestamp: metav1.Time{Time: expirationTime},
+		},
+	}
+	viewerKubeconfigResponse := &authenticationv1alpha1.ViewerKubeconfigRequest{
+		Status: authenticationv1alpha1.ViewerKubeconfigRequestStatus{
+			Kubeconfig:          []byte(viewerKubeconfig),
+			ExpirationTimestamp: metav1.Time{Time: expirationTime},
+		},
+	}
+
+	return &fake.RESTClient{
+		GroupVersion: struct {
+			Group   string
+			Version string
+		}{Group: "", Version: "v1"},
+		NegotiatedSerializer: codecs.WithoutConversion(),
+		Client: fake.CreateHTTPClient(func(req *http.Request) (*http.Response, error) {
+			for _, path := range forbiddenPaths {
+				if req.URL.Path == path {
+					return &http.Response{
+						StatusCode: http.StatusForbidden,
+						Header:     DefaultHeader(),
+					}, nil
+				}
+			}
+
+			switch req.Method {
+			case "POST":
+				switch req.URL.Path {
+				case "/namespaces/garden-myproject/shoots/mycluster/adminkubeconfig":
+					body := &authenticationv1alpha1.AdminKubeconfigRequest{}
+					BodyIntoObj(codec, req.Body, body)
+					wantExpirationSeconds := int64(42)
+					Expect(body.Spec.ExpirationSeconds).To(Equal(&wantExpirationSeconds))
+
+					return &http.Response{
+						StatusCode: http.StatusOK,
+						Header:     DefaultHeader(),
+						Body:       ObjBody(codec, adminKubeconfigResponse),
+					}, nil
+				case "/namespaces/garden-myproject/shoots/mycluster/viewerkubeconfig":
+					body := &authenticationv1alpha1.ViewerKubeconfigRequest{}
+					BodyIntoObj(codec, req.Body, body)
+					wantExpirationSeconds := int64(42)
+					Expect(body.Spec.ExpirationSeconds).To(Equal(&wantExpirationSeconds))
+
+					return &http.Response{
+						StatusCode: http.StatusOK,
+						Header:     DefaultHeader(),
+						Body:       ObjBody(codec, viewerKubeconfigResponse),
+					}, nil
+				default:
+					Fail(fmt.Sprintf("unexpected request: %#v\n%#v", req.URL, req))
+					return nil, nil
+				}
+			default:
+				Fail(fmt.Sprintf("unexpected request: %s %#v\n%#v", req.Method, req.URL, req))
+				return nil, nil
+			}
+		}),
+	}
+}
 
 func DefaultHeader() http.Header {
 	header := http.Header{}
@@ -509,7 +635,7 @@ func generateClientCert(caCert *secrets.Certificate, validity time.Duration) *se
 	csc := &secrets.CertificateSecretConfig{
 		Name:         "foo",
 		CommonName:   "foo",
-		Organization: []string{"system:masters"},
+		Organization: []string{"test"},
 		CertType:     secrets.ClientCert,
 		Validity:     &validity,
 		SigningCA:    caCert,
