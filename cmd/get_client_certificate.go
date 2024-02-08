@@ -431,7 +431,7 @@ func (o *GetClientCertificateOptions) createKubeconfigRequest(ctx context.Contex
 		)
 
 		if apierrors.IsForbidden(err) {
-			logger.Info("No permission to obtain admin kubeconfig. Falling back to obtaining viewer kubeconfig.", "error", err)
+			logger.V(4).Info("No permission to obtain admin kubeconfig. Falling back to obtaining viewer kubeconfig.", "error", err)
 
 			kubeconfigRequest, err = createViewerKubeconfigRequest(
 				ctx,
