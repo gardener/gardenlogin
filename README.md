@@ -1,9 +1,8 @@
 # Gardenlogin
-
+[![REUSE status](https://api.reuse.software/badge/github.com/gardener/gardenlogin)](https://api.reuse.software/info/github.com/gardener/gardenlogin)
 [![Slack channel #gardener](https://img.shields.io/badge/slack-gardener-brightgreen.svg?logo=slack)](https://kubernetes.slack.com/messages/gardener)
 [![Go Report Card](https://goreportcard.com/badge/github.com/gardener/gardenlogin)](https://goreportcard.com/report/github.com/gardener/gardenlogin)
 [![release](https://badge.fury.io/gh/gardener%2Fgardenlogin.svg)](https://badge.fury.io/gh/gardener%2Fgardenlogin)
-[![reuse compliant](https://reuse.software/badge/reuse-compliant.svg)](https://reuse.software/)
 
 The `gardenlogin`s `get-client-certificate` command can be used as a `kubectl` [credential plugin](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#client-go-credential-plugins). It supports fetching credentials from two subresources: [`shoots/adminkubeconfig`](https://github.com/gardener/gardener/blob/master/docs/proposals/16-adminkubeconfig-subresource.md) and `shoots/viewerkubeconfig`
 
