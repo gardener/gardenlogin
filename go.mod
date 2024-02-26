@@ -1,9 +1,8 @@
 module github.com/gardener/gardenlogin
 
 go 1.21
-
 require (
-	github.com/gardener/gardener v1.87.1
+	github.com/gardener/gardener v1.89.0
 	github.com/iancoleman/strcase v0.3.0
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/onsi/ginkgo/v2 v2.15.0
@@ -12,11 +11,11 @@ require (
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.18.2
 	gopkg.in/yaml.v3 v3.0.1
-	k8s.io/apimachinery v0.28.3
-	k8s.io/client-go v0.28.3
-	k8s.io/component-base v0.28.3
-	k8s.io/klog/v2 v2.100.1
-	k8s.io/utils v0.0.0-20230406110748-d93618cff8a2
+	k8s.io/apimachinery v0.28.4
+	k8s.io/client-go v0.28.4
+	k8s.io/component-base v0.28.4
+	k8s.io/klog/v2 v2.110.1
+	k8s.io/utils v0.0.0-20240102154912-e7106e64919e
 )
 
 require (
@@ -72,6 +71,7 @@ require (
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/pelletier/go-toml/v2 v2.1.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
+	github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring v0.71.0 // indirect
 	github.com/prometheus/client_golang v1.16.0 // indirect
 	github.com/prometheus/client_model v0.4.0 // indirect
 	github.com/prometheus/common v0.44.0 // indirect
@@ -108,8 +108,8 @@ require (
 	helm.sh/helm/v3 v3.11.1 // indirect
 	istio.io/api v1.19.2-0.20231011000955-f3015ebb5bd4 // indirect
 	istio.io/client-go v1.19.3 // indirect
-	k8s.io/api v0.28.3 // indirect
-	k8s.io/apiextensions-apiserver v0.28.3 // indirect
+	k8s.io/api v0.28.4 // indirect
+	k8s.io/apiextensions-apiserver v0.28.4 // indirect
 	k8s.io/autoscaler/vertical-pod-autoscaler v1.0.0 // indirect
 	k8s.io/helm v2.17.0+incompatible // indirect
 	k8s.io/kube-aggregator v0.28.3 // indirect
@@ -118,6 +118,6 @@ require (
 	k8s.io/metrics v0.28.3 // indirect
 	sigs.k8s.io/controller-runtime v0.16.3 // indirect
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
-	sigs.k8s.io/structured-merge-diff/v4 v4.3.0 // indirect
-	sigs.k8s.io/yaml v1.3.0 // indirect
+	sigs.k8s.io/structured-merge-diff/v4 v4.4.1 // indirect
+	sigs.k8s.io/yaml v1.4.0 // indirect
 )
