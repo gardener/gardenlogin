@@ -26,6 +26,7 @@ func AddConversionFuncs(scheme *runtime.Scheme) error {
 		}
 
 		internalVersion := &clientauthentication.ExecCredential{}
+
 		err := clientauthenticationv1beta1.Convert_v1beta1_ExecCredential_To_clientauthentication_ExecCredential(v1beta1ExecCredential, internalVersion, scope)
 		if err != nil {
 			return err
@@ -43,6 +44,7 @@ func AddConversionFuncs(scheme *runtime.Scheme) error {
 		}
 
 		internalVersion := &clientauthentication.ExecCredential{}
+
 		err := clientauthenticationv1.Convert_v1_ExecCredential_To_clientauthentication_ExecCredential(v1ExecCredential, internalVersion, scope)
 		if err != nil {
 			return err
