@@ -107,6 +107,7 @@ func initConfig() {
 		if strings.Contains(flag.Name, "-") {
 			envVarSuffix := strcase.ToScreamingSnake(flag.Name)
 			envVar := fmt.Sprintf("%s_%s", envPrefix, envVarSuffix)
+
 			if err := viper.BindEnv(viperKey, envVar); err != nil {
 				logger.Info("Failed to bind config key to env variable", "key", viperKey, "env", envVar, "error", err.Error())
 			}
@@ -115,6 +116,7 @@ func initConfig() {
 		viperConfigSet := viper.IsSet(viperKey)
 		if !flag.Changed && viperConfigSet {
 			val := viper.Get(viperKey)
+
 			err := getClientCertificateCmd.Flags().Set(flag.Name, fmt.Sprintf("%v", val))
 			if err != nil {
 				logger.Info("Failed to set flag", "flag", flag.Name, "error", err.Error())
