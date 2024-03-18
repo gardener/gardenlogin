@@ -32,7 +32,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
 	"k8s.io/klog/v2"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"k8s.io/utils/strings/slices"
 
 	"github.com/gardener/gardenlogin/internal/certificatecache"
@@ -469,7 +469,7 @@ func createAdminKubeconfigRequest(ctx context.Context, client rest.Interface, na
 			APIVersion: authenticationv1alpha1.SchemeGroupVersion.String(),
 		},
 		Spec: authenticationv1alpha1.AdminKubeconfigRequestSpec{
-			ExpirationSeconds: pointer.Int64(expirationSeconds),
+			ExpirationSeconds: ptr.To(expirationSeconds),
 		},
 	}
 
@@ -501,7 +501,7 @@ func createViewerKubeconfigRequest(ctx context.Context, client rest.Interface, n
 			APIVersion: authenticationv1alpha1.SchemeGroupVersion.String(),
 		},
 		Spec: authenticationv1alpha1.ViewerKubeconfigRequestSpec{
-			ExpirationSeconds: pointer.Int64(expirationSeconds),
+			ExpirationSeconds: ptr.To(expirationSeconds),
 		},
 	}
 
