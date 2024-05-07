@@ -3,10 +3,10 @@ module github.com/gardener/gardenlogin
 go 1.22.2
 
 require (
-	github.com/gardener/gardener v1.94.0
+	github.com/gardener/gardener v1.94.1
 	github.com/iancoleman/strcase v0.3.0
 	github.com/mitchellh/go-homedir v1.1.0
-	github.com/onsi/ginkgo/v2 v2.17.2
+	github.com/onsi/ginkgo/v2 v2.17.3
 	github.com/onsi/gomega v1.33.1
 	github.com/spf13/cobra v1.8.0
 	github.com/spf13/pflag v1.0.5
