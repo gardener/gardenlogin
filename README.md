@@ -50,7 +50,7 @@ chmod +x "./gardenlogin_${os}_${arch}"
 sudo mv "./gardenlogin_${os}_${arch}" /usr/local/bin/gardenlogin
 
 # create kubectl-gardenlogin symlink
-ln -s /usr/local/bin/gardenlogin /usr/local/bin/kubectl-gardenlogin
+sudo ln -s /usr/local/bin/gardenlogin /usr/local/bin/kubectl-gardenlogin
 ```
 
 ## Configure Gardenlogin
