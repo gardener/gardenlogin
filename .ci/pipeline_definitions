@@ -7,6 +7,8 @@ gardenlogin:
         preprocess:
           'inject-commit-hash'
         inject_effective_version: true
+      component_descriptor:
+        ocm_repository: europe-docker.pkg.dev/gardener-project/snapshots
     steps:
       check:
         image: 'golang:1.23.2'
@@ -20,14 +22,14 @@ gardenlogin:
   jobs:
     head-update:
       traits:
-        component_descriptor: ~
         draft_release: ~
     pull-request:
       traits:
         pull-request: ~
     release:
       traits:
-        component_descriptor: ~
+        component_descriptor:
+          ocm_repository: europe-docker.pkg.dev/gardener-project/releases
         version:
           preprocess: 'finalize'
         release:
