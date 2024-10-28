@@ -41,6 +41,14 @@ fmt: ## Run go fmt against code.
 lint: ## Run golangci-lint against code.
 	@./hack/golangci-lint.sh
 
+.PHONY: sast
+sast: $(GOSEC) ## Run gosec against code
+	@./hack/sast.sh
+
+.PHONY: sast-report
+sast-report: $(GOSEC) ## Run gosec against code and export report to SARIF.
+	@./hack/sast.sh --gosec-report true
+
 .PHONY: go-test
 go-test: ## Run go tests.
 	@./hack/test-integration.sh
