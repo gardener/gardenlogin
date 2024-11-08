@@ -46,7 +46,7 @@ func (s *Store) FindByKey(key certificatecache.Key) (*certificatecache.Certifica
 
 	path := filepath.Join(s.Dir, filename)
 
-	f, err := os.Open(path)
+	f, err := os.Open(path) // #nosec G304 -- Accepting user-provided store file path by design
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +79,7 @@ func (s *Store) Save(key certificatecache.Key, certificateSet certificatecache.C
 
 	path := filepath.Join(s.Dir, filename)
 
-	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o600)
+	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o600) // #nosec G304 -- Accepting user-provided store file path by design
 	if err != nil {
 		return err
 	}

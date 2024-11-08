@@ -2,6 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+REPO_ROOT      := $(shell git rev-parse --show-toplevel)
+
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
 GOBIN=$(shell go env GOPATH)/bin
@@ -10,6 +12,13 @@ GOBIN=$(shell go env GOBIN)
 endif
 
 export LD_FLAGS=$(shell ./hack/get-build-ld-flags.sh)
+
+#########################################
+# Tools                                 #
+#########################################
+
+TOOLS_DIR := hack/tools
+include hack/tools.mk
 
 ##@ General
 
@@ -30,25 +39,55 @@ help: ## Display this help.
 
 ##@ Development
 
-.PHONY: test
-test: fmt lint go-test ## Run tests.
+.PHONY: tidy
+tidy: ## Clean up go.mod and go.sum by removing unused dependencies.
+	go mod tidy
+
+.PHONY: clean
+clean: ## Remove generated files and clean up directories.
+	@hack/clean.sh ./cmd/... ./internal/...
+
+.PHONY: generate
+generate: $(MOCKGEN) fmt  ## Run go generate
+	@hack/generate.sh ./cmd/... ./internal/...
 
 .PHONY: fmt
 fmt: ## Run go fmt against code.
 	go fmt ./...
 
+.PHONY: check-generate
+check-generate: ## Verify if code generation is up-to-date by running generate and checking for changes.
+	@hack/check-generate.sh $(REPO_ROOT)
+
 .PHONY: lint
 lint: ## Run golangci-lint against code.
 	@./hack/golangci-lint.sh
+
+.PHONY: sast
+sast: $(GOSEC) ## Run gosec against code
+	@./hack/sast.sh
+
+.PHONY: sast-report
+sast-report: $(GOSEC) ## Run gosec against code and export report to SARIF.
+	@./hack/sast.sh --gosec-report true
+
+.PHONY: test
+test: fmt lint go-test sast ## Run tests.
 
 .PHONY: go-test
 go-test: ## Run go tests.
 	@./hack/test-integration.sh
 
+.PHONY: verify ## Run basic verification including linting, tests, static analysis and check if the generated markdown is up-to-date.
+verify: lint go-test sast
+
+.PHONY: verify-extended ## Run extended verification including code generation check, linting, tests, and detailed static analysis report.
+verify-extended: check-generate lint go-test sast-report
+
 ##@ Build
 
 .PHONY: build
-build: build-darwin-amd64 build-darwin-arm64 build-linux-amd64 build-linux-arm64 build-windows-amd64  ## Build gardenlogin binary for darwin, linux and windows.
+build: build-darwin-amd64 build-darwin-arm64 build-linux-amd64 build-linux-arm64 build-windows-amd64 ## Build gardenlogin binary for darwin, linux and windows.
 
 .PHONY: build-linux-amd64
 build-linux-amd64: ## Build gardenlogin binary for Linux on Intel processors.
