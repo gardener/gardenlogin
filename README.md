@@ -25,6 +25,25 @@ brew install gardener/tap/gardenlogin
 # Chocolatey (Windows)
 choco install gardenlogin
 ```
+### Install using Nix
+
+Nix with [Flakes](https://nixos.wiki/wiki/Flakes) (prerequisite: [Nix](https://nixos.org/download), the package manager):
+
+```bash
+# Nix (macOS, Linux, and Windows)
+
+# development version
+nix profile install github:gardener/gardenlogin
+# or release <version>
+nix profile install github:gardener/gardenlogin/<version>
+
+#check installation
+nix profile list | grep gardenlogin
+
+# optionally, open a new shell and verify that cmd completion works
+gardenlogin --help
+kubectl gardenlogin --help
+```
 
 ### Install from Github Release
 
