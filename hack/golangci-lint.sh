@@ -17,7 +17,7 @@ else
 fi
 
 # renovate: datasource=github-releases depName=golangci/golangci-lint
-golangci_lint_version=v1.63.4
+golangci_lint_version=v1.64.5
 
 # Install golangci-lint (linting tool)
 curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin "$golangci_lint_version"
