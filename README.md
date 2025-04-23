@@ -1,6 +1,6 @@
 # Gardenlogin
 [![REUSE status](https://api.reuse.software/badge/github.com/gardener/gardenlogin)](https://api.reuse.software/info/github.com/gardener/gardenlogin)
-[![Slack channel #gardener](https://img.shields.io/badge/slack-gardener-brightgreen.svg?logo=slack)](https://kubernetes.slack.com/messages/gardener)
+[![Slack workspace](https://img.shields.io/badge/Slack-Gardener%20Project-brightgreen.svg?logo=slack)](https://gardener-cloud.slack.com/)
 [![Go Report Card](https://goreportcard.com/badge/github.com/gardener/gardenlogin)](https://goreportcard.com/report/github.com/gardener/gardenlogin)
 [![release](https://badge.fury.io/gh/gardener%2Fgardenlogin.svg)](https://badge.fury.io/gh/gardener%2Fgardenlogin)
 
