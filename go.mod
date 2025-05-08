@@ -1,8 +1,6 @@
 module github.com/gardener/gardenlogin
 
-go 1.23.0
-
-toolchain go1.23.2
+go 1.24.3
 
 require (
 	github.com/gardener/gardener v1.110.5
