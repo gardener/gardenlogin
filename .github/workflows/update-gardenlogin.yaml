@@ -16,10 +16,10 @@ on:
         required: true
         type: string
       dry_run: 
-        description: "Skip build & upload; send dummy checksums"
+        description: "Skip build & upload; send dummy checksums (dry-run)"
         required: false
         type: boolean
-        default: false
+        default: true
 
 jobs:
   update_gardenlogin_in_homebrew_tap_and_chocolatey_packages:
