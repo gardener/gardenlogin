@@ -8,18 +8,23 @@ on:
   release:
     types: [published]
 
-  # Manual / ad-hoc trigger
+  # Manual / ad‑hoc trigger
   workflow_dispatch:
     inputs:
       tag:
         description: 'Tag or version to build & dispatch (e.g. v1.2.3)'
         required: true
         type: string
-      dry_run: 
-        description: "Skip build & upload; send dummy checksums (dry-run)"
+      skip_build:
+        description: "Skip build & upload; send dummy checksums"
         required: false
         type: boolean
         default: true
+      dry_run:
+        description: "Dry run: disable external actions (no uploads/dispatches)"
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   update_gardenlogin_in_homebrew_tap_and_chocolatey_packages:
@@ -28,20 +33,15 @@ jobs:
       group: ${{ github.workflow }}-${{ github.ref }}
       cancel-in-progress: true
 
-    steps:
-      # ───── Tag resolution ────────────────────────────────────────────────────
-      - name: Determine TAG
-        id: tag
-        run: |
-          if [[ "${{ github.event_name }}" == "release" ]]; then
-            echo "TAG=${{ github.ref_name }}" >> $GITHUB_ENV
-          else
-            echo "TAG=${{ inputs.tag }}"  >> $GITHUB_ENV
-          fi
+    # ───── Single source of truth for the tag (expression evaluated outside the shell) ─────
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
 
+    steps:
       # ───── Checkout ─────────────────────────────────────────────────────────
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
-        with: { fetch-depth: 1 }
+        with:
+          fetch-depth: 1
 
       # ───── Go toolchain & cache ─────────────────────────────────────────────
       - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5  # v5.5.0
@@ -51,8 +51,11 @@ jobs:
 
       # ───── Build ────────────────────────────────────────────────────────────
       - name: Build binaries
-        if: github.event_name == 'release' || inputs.dry_run == false
-        run: make build    # make is pre-installed on ubuntu-24.04
+        # Always build except when workflow_dispatch and user kept skip_build=true
+        if: github.event_name != 'workflow_dispatch' || inputs.skip_build == false
+        run: |
+          echo "Building binaries for tag: $TAG"
+          make build    # make is pre‑installed on ubuntu-24.04
 
       # ───── Upload assets (only when there *is* a GitHub Release) ────────────
       - name: Upload binaries to release
@@ -66,11 +69,11 @@ jobs:
             bin/linux-amd64/gardenlogin_linux_amd64 \
             bin/linux-arm64/gardenlogin_linux_arm64 \
             bin/windows-amd64/gardenlogin_windows_amd64.exe \
-            --clobber      # overwrite if the asset name already exists
+            --clobber
 
-      # ───── GitHub-App token (needed for repo-dispatch) ──────────────────────
+      # ───── GitHub‑App token (needed for repo‑dispatch) ──────────────────────
       - name: Get token for gardener-github-pkg-mngr app
-        if: github.event_name == 'workflow_dispatch' || (github.event_name == 'release' && github.event.release.prerelease == false)
+        if: (github.event_name == 'workflow_dispatch' || (github.event_name == 'release' && github.event.release.prerelease == false)) && inputs.dry_run == false
         id: gardener-github-workflows
         uses: actions/create-github-app-token@df432ceedc7162793a195dd1713ff69aefc7379e   # v2.0.6
         with:
@@ -78,65 +81,63 @@ jobs:
           private-key: ${{ secrets.GARDENER_GITHUB_WORKFLOW_PKG_MNGR_APP_PRIVATE_KEY }}
           owner:       ${{ github.repository_owner }}
           repositories: |
-           homebrew-tap
-           chocolatey-packages
+            homebrew-tap
+            chocolatey-packages
 
-      # ───── SHA-256 sums (all in one pass) ───────────────────────────────────
+      # ───── SHA‑256 sums (all in one pass) ───────────────────────────────────
       - name: Compute checksums
-        if: inputs.dry_run == false
+        if: (github.event_name != 'workflow_dispatch' || inputs.skip_build == false) && inputs.dry_run == false
         run: |
-          echo "DARWIN_SHA_AMD64=$(sha256sum bin/darwin-amd64/gardenlogin_darwin_amd64      | awk '{print $1}')" >> $GITHUB_ENV
-          echo "DARWIN_SHA_ARM64=$(sha256sum bin/darwin-arm64/gardenlogin_darwin_arm64      | awk '{print $1}')" >> $GITHUB_ENV
-          echo "LINUX_SHA_AMD64=$(sha256sum bin/linux-amd64/gardenlogin_linux_amd64        | awk '{print $1}')" >> $GITHUB_ENV
-          echo "LINUX_SHA_ARM64=$(sha256sum bin/linux-arm64/gardenlogin_linux_arm64        | awk '{print $1}')" >> $GITHUB_ENV
-          echo "WINDOWS_SHA=$(sha256sum     bin/windows-amd64/gardenlogin_windows_amd64.exe | awk '{print $1}')" >> $GITHUB_ENV
+          set -euo pipefail
+          echo "DARWIN_SHA_AMD64=$(sha256sum bin/darwin-amd64/gardenlogin_darwin_amd64      | awk '{print $1}')" >> "$GITHUB_ENV"
+          echo "DARWIN_SHA_ARM64=$(sha256sum bin/darwin-arm64/gardenlogin_darwin_arm64      | awk '{print $1}')" >> "$GITHUB_ENV"
+          echo "LINUX_SHA_AMD64=$(sha256sum bin/linux-amd64/gardenlogin_linux_amd64        | awk '{print $1}')" >> "$GITHUB_ENV"
+          echo "LINUX_SHA_ARM64=$(sha256sum bin/linux-arm64/gardenlogin_linux_arm64        | awk '{print $1}')" >> "$GITHUB_ENV"
+          echo "WINDOWS_SHA=$(sha256sum     bin/windows-amd64/gardenlogin_windows_amd64.exe | awk '{print $1}')" >> "$GITHUB_ENV"
 
-      - name: Use dummy hashes for dry-run
-        if: inputs.dry_run == true
+      - name: Use dummy hashes (skip‑build or dry‑run)
+        if: (github.event_name == 'workflow_dispatch' && inputs.skip_build == true) || inputs.dry_run == true
         run: |
+          set -euo pipefail
           dummy=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
-          echo "DARWIN_SHA_AMD64=$dummy" >> $GITHUB_ENV
-          echo "DARWIN_SHA_ARM64=$dummy" >> $GITHUB_ENV
-          echo "LINUX_SHA_AMD64=$dummy"  >> $GITHUB_ENV
-          echo "LINUX_SHA_ARM64=$dummy"  >> $GITHUB_ENV
-          echo "WINDOWS_SHA=$dummy"      >> $GITHUB_ENV
+          printf '%s\n' \
+            "DARWIN_SHA_AMD64=$dummy" \
+            "DARWIN_SHA_ARM64=$dummy" \
+            "LINUX_SHA_AMD64=$dummy"  \
+            "LINUX_SHA_ARM64=$dummy"  \
+            "WINDOWS_SHA=$dummy" >> "$GITHUB_ENV"
 
       # ───── Homebrew tap dispatch ────────────────────────────────────────────
       - name: Send update to ${{ github.repository_owner }}/homebrew-tap
-        if: github.event_name == 'workflow_dispatch' || (github.event_name == 'release' && github.event.release.prerelease == false)
+        if: (github.event_name == 'workflow_dispatch' || (github.event_name == 'release' && github.event.release.prerelease == false)) && inputs.dry_run == false
         run: |
+          set -euo pipefail
           data=$(jq -n \
-            --arg component "gardenlogin" \
-            --arg tag       "$TAG" \
-            --arg darwin_sha_amd64 "$DARWIN_SHA_AMD64" \
-            --arg darwin_sha_arm64 "$DARWIN_SHA_ARM64" \
-            --arg linux_sha_amd64  "$LINUX_SHA_AMD64"  \
-            --arg linux_sha_arm64  "$LINUX_SHA_ARM64"  \
-            '{event_type:"update",
-              client_payload:{
-                component:$component, tag:$tag,
-                darwin_sha_amd64:$darwin_sha_amd64,
-                darwin_sha_arm64:$darwin_sha_arm64,
-                linux_sha_amd64:$linux_sha_amd64,
-                linux_sha_arm64:$linux_sha_arm64}}')
+            --arg component          "gardenlogin" \
+            --arg tag                "$TAG" \
+            --arg darwin_sha_amd64   "$DARWIN_SHA_AMD64" \
+            --arg darwin_sha_arm64   "$DARWIN_SHA_ARM64" \
+            --arg linux_sha_amd64    "$LINUX_SHA_AMD64" \
+            --arg linux_sha_arm64    "$LINUX_SHA_ARM64" \
+            '{event_type:"update",client_payload:{component:$component,tag:$tag,darwin_sha_amd64:$darwin_sha_amd64,darwin_sha_arm64:$darwin_sha_arm64,linux_sha_amd64:$linux_sha_amd64,linux_sha_arm64:$linux_sha_arm64}}')
           curl -X POST \
-               -H 'Accept: application/vnd.github.everest-preview+json' \
-               -H "Authorization: Bearer ${{ steps.gardener-github-workflows.outputs.token }}" \
-               -d "$data" \
-               https://api.github.com/repos/${{ github.repository_owner }}/homebrew-tap/dispatches
+            -H 'Accept: application/vnd.github.everest-preview+json' \
+            -H "Authorization: Bearer ${{ steps.gardener-github-workflows.outputs.token }}" \
+            -d "$data" \
+            "https://api.github.com/repos/${{ github.repository_owner }}/homebrew-tap/dispatches"
 
       # ───── Chocolatey dispatch ──────────────────────────────────────────────
       - name: Send update to ${{ github.repository_owner }}/chocolatey-packages
-        if: github.event_name == 'workflow_dispatch' || (github.event_name == 'release' && github.event.release.prerelease == false)
+        if: (github.event_name == 'workflow_dispatch' || (github.event_name == 'release' && github.event.release.prerelease == false)) && inputs.dry_run == false
         run: |
+          set -euo pipefail
           data=$(jq -n \
-            --arg component "gardenlogin" \
-            --arg tag        "$TAG" \
+            --arg component   "gardenlogin" \
+            --arg tag         "$TAG" \
             --arg windows_sha "$WINDOWS_SHA" \
-            '{event_type:"update",
-              client_payload:{ component:$component, tag:$tag, windows_sha:$windows_sha }}')
+            '{event_type:"update",client_payload:{component:$component,tag:$tag,windows_sha:$windows_sha}}')
           curl -X POST \
-               -H 'Accept: application/vnd.github.everest-preview+json' \
-               -H "Authorization: Bearer ${{ steps.gardener-github-workflows.outputs.token }}" \
-               -d "$data" \
-               https://api.github.com/repos/${{ github.repository_owner }}/chocolatey-packages/dispatches
+            -H 'Accept: application/vnd.github.everest-preview+json' \
+            -H "Authorization: Bearer ${{ steps.gardener-github-workflows.outputs.token }}" \
+            -d "$data" \
+            "https://api.github.com/repos/${{ github.repository_owner }}/chocolatey-packages/dispatches"
