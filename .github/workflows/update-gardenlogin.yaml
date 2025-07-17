@@ -99,7 +99,7 @@ jobs:
         if: (github.event_name == 'workflow_dispatch' && inputs.skip_build == true) || inputs.dry_run == true
         run: |
           set -euo pipefail
-          dummy=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+          dummy=dummySHA256sum
           printf '%s\n' \
             "DARWIN_SHA_AMD64=$dummy" \
             "DARWIN_SHA_ARM64=$dummy" \
