@@ -12,11 +12,11 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Tag (version) to build & dispatch (e.g. v1.2.3)'
+        description: 'Tag (version) to build & dispatch (e.g. v1.2.3) - does not upload binaries to release'
         required: true
         type: string
       skip_build:
-        description: "Skip build & upload; send dummy checksums"
+        description: "Skip build send dummy checksums"
         required: false
         type: boolean
         default: true
