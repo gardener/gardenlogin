@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Tag or version to build & dispatch (e.g. v1.2.3)'
+        description: 'Tag (version) to build & dispatch (e.g. v1.2.3)'
         required: true
         type: string
       skip_build:
@@ -28,12 +28,12 @@ on:
 
 jobs:
   update_gardenlogin_in_homebrew_tap_and_chocolatey_packages:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}
       cancel-in-progress: true
 
-    # ───── Single source of truth for the tag (expression evaluated outside the shell) ─────
+    # ───── Set ref (potential user input) as ENV variable (protects against script injection) ─────
     env:
       TAG: ${{ inputs.tag || github.ref_name }}
 
@@ -41,13 +41,12 @@ jobs:
       # ───── Checkout ─────────────────────────────────────────────────────────
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
         with:
-          fetch-depth: 1
+          ref: "refs/tags/${{ env.TAG }}"
 
       # ───── Go toolchain & cache ─────────────────────────────────────────────
       - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5  # v5.5.0
         with:
           go-version-file: go.mod
-          cache-dependency-path: '**/go.sum'
 
       # ───── Build ────────────────────────────────────────────────────────────
       - name: Build binaries
@@ -55,7 +54,7 @@ jobs:
         if: github.event_name != 'workflow_dispatch' || inputs.skip_build == false
         run: |
           echo "Building binaries for tag: $TAG"
-          make build    # make is pre‑installed on ubuntu-24.04
+          make build
 
       # ───── Upload assets (only when there *is* a GitHub Release) ────────────
       - name: Upload binaries to release
@@ -73,7 +72,7 @@ jobs:
 
       # ───── GitHub‑App token (needed for repo‑dispatch) ──────────────────────
       - name: Get token for gardener-github-pkg-mngr app
-        if: (github.event_name == 'workflow_dispatch' || (github.event_name == 'release' && github.event.release.prerelease == false)) && inputs.dry_run == false
+        if: (github.event_name == 'workflow_dispatch' && inputs.dry_run == false) || (github.event_name == 'release' && github.event.release.prerelease == false)
         id: gardener-github-workflows
         uses: actions/create-github-app-token@df432ceedc7162793a195dd1713ff69aefc7379e   # v2.0.6
         with:
@@ -86,7 +85,7 @@ jobs:
 
       # ───── SHA‑256 sums (all in one pass) ───────────────────────────────────
       - name: Compute checksums
-        if: (github.event_name != 'workflow_dispatch' || inputs.skip_build == false) && inputs.dry_run == false
+        if: github.event_name != 'workflow_dispatch' || (inputs.skip_build == false  && inputs.dry_run == false)
         run: |
           set -euo pipefail
           echo "DARWIN_SHA_AMD64=$(sha256sum bin/darwin-amd64/gardenlogin_darwin_amd64      | awk '{print $1}')" >> "$GITHUB_ENV"
@@ -95,8 +94,8 @@ jobs:
           echo "LINUX_SHA_ARM64=$(sha256sum bin/linux-arm64/gardenlogin_linux_arm64        | awk '{print $1}')" >> "$GITHUB_ENV"
           echo "WINDOWS_SHA=$(sha256sum     bin/windows-amd64/gardenlogin_windows_amd64.exe | awk '{print $1}')" >> "$GITHUB_ENV"
 
-      - name: Use dummy hashes (skip‑build or dry‑run)
-        if: (github.event_name == 'workflow_dispatch' && inputs.skip_build == true) || inputs.dry_run == true
+      - name: Use dummy hashes (skip‑build)
+        if: github.event_name == 'workflow_dispatch' && inputs.skip_build == true && inputs.dry_run != true
         run: |
           set -euo pipefail
           dummy=dummySHA256sum
@@ -109,7 +108,7 @@ jobs:
 
       # ───── Homebrew tap dispatch ────────────────────────────────────────────
       - name: Send update to ${{ github.repository_owner }}/homebrew-tap
-        if: (github.event_name == 'workflow_dispatch' || (github.event_name == 'release' && github.event.release.prerelease == false)) && inputs.dry_run == false
+        if: (github.event_name == 'release' && github.event.release.prerelease == false) || (github.event_name == 'workflow_dispatch' && inputs.dry_run == false)
         run: |
           set -euo pipefail
           data=$(jq -n \
@@ -135,7 +134,7 @@ jobs:
 
       # ───── Chocolatey dispatch ──────────────────────────────────────────────
       - name: Send update to ${{ github.repository_owner }}/chocolatey-packages
-        if: (github.event_name == 'workflow_dispatch' || (github.event_name == 'release' && github.event.release.prerelease == false)) && inputs.dry_run == false
+        if: (github.event_name == 'release' && github.event.release.prerelease == false) || (github.event_name == 'workflow_dispatch' && inputs.dry_run == false)
         run: |
           set -euo pipefail
           data=$(jq -n \
