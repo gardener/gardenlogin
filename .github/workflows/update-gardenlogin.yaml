@@ -36,6 +36,7 @@ jobs:
     # ───── Set ref (potential user input) as ENV variable (protects against script injection) ─────
     env:
       TAG: ${{ inputs.tag || github.ref_name }}
+      OWNER: ${{ github.repository_owner }}
 
     steps:
       # ───── Checkout ─────────────────────────────────────────────────────────
@@ -60,7 +61,7 @@ jobs:
       - name: Upload binaries to release
         if: github.event_name == 'release'
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}   # auth for `gh`
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}   # auth for `gh`
         run: |
           gh release upload "$TAG" \
             bin/darwin-amd64/gardenlogin_darwin_amd64 \
@@ -72,13 +73,13 @@ jobs:
 
       # ───── GitHub‑App token (needed for repo‑dispatch) ──────────────────────
       - name: Get token for gardener-github-pkg-mngr app
-        if: (github.event_name == 'workflow_dispatch' && inputs.dry_run == false) || (github.event_name == 'release' && github.event.release.prerelease == false)
+        if: (github.event_name == 'release' && github.event.release.prerelease == false) || (github.event_name == 'workflow_dispatch' && inputs.dry_run == false) 
         id: gardener-github-workflows
         uses: actions/create-github-app-token@df432ceedc7162793a195dd1713ff69aefc7379e   # v2.0.6
         with:
           app-id:      ${{ secrets.GARDENER_GITHUB_WORKFLOW_PKG_MNGR_APP_ID }}
           private-key: ${{ secrets.GARDENER_GITHUB_WORKFLOW_PKG_MNGR_APP_PRIVATE_KEY }}
-          owner:       ${{ github.repository_owner }}
+          owner:       ${{ env.OWNER }}
           repositories: |
             homebrew-tap
             chocolatey-packages
@@ -107,7 +108,7 @@ jobs:
             "WINDOWS_SHA=$dummy" >> "$GITHUB_ENV"
 
       # ───── Homebrew tap dispatch ────────────────────────────────────────────
-      - name: Send update to ${{ github.repository_owner }}/homebrew-tap
+      - name: Send update to $OWNER/homebrew-tap
         if: (github.event_name == 'release' && github.event.release.prerelease == false) || (github.event_name == 'workflow_dispatch' && inputs.dry_run == false)
         run: |
           set -euo pipefail
@@ -130,10 +131,10 @@ jobs:
             -H 'Accept: application/vnd.github.everest-preview+json' \
             -H "Authorization: Bearer ${{ steps.gardener-github-workflows.outputs.token }}" \
             -d "$data" \
-            "https://api.github.com/repos/${{ github.repository_owner }}/homebrew-tap/dispatches"
+            "https://api.github.com/repos/$OWNER/homebrew-tap/dispatches"
 
       # ───── Chocolatey dispatch ──────────────────────────────────────────────
-      - name: Send update to ${{ github.repository_owner }}/chocolatey-packages
+      - name: Send update to $OWNER/chocolatey-packages
         if: (github.event_name == 'release' && github.event.release.prerelease == false) || (github.event_name == 'workflow_dispatch' && inputs.dry_run == false)
         run: |
           set -euo pipefail
@@ -150,4 +151,4 @@ jobs:
             -H 'Accept: application/vnd.github.everest-preview+json' \
             -H "Authorization: Bearer ${{ steps.gardener-github-workflows.outputs.token }}" \
             -d "$data" \
-            "https://api.github.com/repos/${{ github.repository_owner }}/chocolatey-packages/dispatches"
+            "https://api.github.com/repos/$OWNER/chocolatey-packages/dispatches"
