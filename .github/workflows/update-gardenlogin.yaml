@@ -96,7 +96,7 @@ jobs:
           echo "WINDOWS_SHA=$(sha256sum     bin/windows-amd64/gardenlogin_windows_amd64.exe | awk '{print $1}')" >> "$GITHUB_ENV"
 
       - name: Use dummy hashes (skip‑build)
-        if: github.event_name == 'workflow_dispatch' && inputs.skip_build == true && inputs.dry_run != true
+        if: github.event_name == 'workflow_dispatch' && inputs.skip_build == true
         run: |
           set -euo pipefail
           dummy=dummySHA256sum
