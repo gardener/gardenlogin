@@ -112,7 +112,24 @@ jobs:
       - shell: bash
         run: |
           set -eu
-          make ${{ matrix.target }}
+          mkdir -p /tmp/blobs.d
+          make ${{ matrix.target }} |& tee /tmp/blobs.d/logs.txt
+          tar czf /tmp/blobs.d/logs.tar.gz -C/tmp/blobs.d logs.txt
+      - name: add-reports-to-component-descriptor
+        if: ${{ matrix.target == 'go-test' }}
+        uses: gardener/cc-utils/.github/actions/export-ocm-fragments@master
+        with:
+          blobs-directory: /tmp/blobs.d
+          ocm-resources: |
+            name: test-results
+            relation: local
+            access:
+              type: localBlob
+              localReference: logs.tar.gz
+            labels:
+              - name: gardener.cloud/purposes
+                value:
+                  - test
 
   verify-sast:
     uses: gardener/cc-utils/.github/workflows/sastlint-ocm.yaml@master
