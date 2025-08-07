@@ -83,7 +83,7 @@ jobs:
     permissions: {}
     steps:
       - name: Fail if build-gardenlogin failed
-        if: ${{ needs.build-gardenlogin != 'success' }}
+        if: ${{ needs.build-gardenlogin.result != 'success' }}
         run: exit 1
 
   verify-others:
