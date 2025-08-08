@@ -87,7 +87,7 @@ jobs:
         run: exit 1
 
   verify-others:
-    runs-on: ubuntu
+    runs-on: ubuntu-latest
     permissions:
       contents: read
     env:
