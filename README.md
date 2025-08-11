@@ -1,4 +1,5 @@
 # Gardenlogin
+[![CI Build status](https://github.com/gardener/gardenlogin/actions/workflows/non-release.yaml/badge.svg?branch=master)](https://github.com/gardener/gardenlogin/actions/workflows/non-release.yaml?query=branch%3Amaster)
 [![REUSE status](https://api.reuse.software/badge/github.com/gardener/gardenlogin)](https://api.reuse.software/info/github.com/gardener/gardenlogin)
 [![Slack workspace](https://img.shields.io/badge/Slack-Gardener%20Project-brightgreen.svg?logo=slack)](https://gardener-cloud.slack.com/)
 [![Go Report Card](https://goreportcard.com/badge/github.com/gardener/gardenlogin)](https://goreportcard.com/report/github.com/gardener/gardenlogin)
