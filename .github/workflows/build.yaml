@@ -10,6 +10,15 @@ on:
         description: |
           the mode to use. either `snapshot` or `release`. Will affect effective version, as well
           as target-oci-registry.
+      commit-objects-artefact:
+        type: string
+        required: false
+        description: |
+          the github-artifact-name containing a captured commit as output by the `capture-commit`
+          action. The default value will import the commit emitted by the `prepare` workflow
+          (which will result in the build to see the to-be-released commit, with correct
+          commit-digest).
+        default: release-commit-objects # exported from prepare.yaml
 
 jobs:
   prepare:
@@ -23,6 +32,8 @@ jobs:
   build-gardenlogin:
     permissions:
       contents: read
+    needs:
+      - prepare
     strategy:
       matrix:
         args:
@@ -44,6 +55,12 @@ jobs:
     runs-on: ${{ matrix.args.runner }}
     steps:
       - uses: gardener/cc-utils/.github/actions/trusted-checkout@master
+      - name: import-release-commit
+        if: ${{ inputs.commit-objects-artefact != '' }}
+        uses: gardener/cc-utils/.github/actions/import-commit@master
+        with:
+          commit-objects-artefact: ${{ inputs.commit-objects-artefact }}
+          after-import: rebase
       - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5  # v5.5.0
         with:
           go-version-file: 'go.mod'
@@ -87,6 +104,8 @@ jobs:
         run: exit 1
 
   verify-others:
+    needs:
+      - prepare
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -102,6 +121,12 @@ jobs:
           - go-test
     steps:
       - uses: gardener/cc-utils/.github/actions/trusted-checkout@master
+      - name: import-release-commit
+        if: ${{ inputs.commit-objects-artefact != '' }}
+        uses: gardener/cc-utils/.github/actions/import-commit@master
+        with:
+          commit-objects-artefact: ${{ inputs.commit-objects-artefact }}
+          after-import: rebase
       - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5  # v5.5.0
         with:
           go-version-file: go.mod
