@@ -23,6 +23,8 @@ jobs:
   build-gardenlogin:
     permissions:
       contents: read
+    needs:
+      - prepare
     strategy:
       matrix:
         args:
@@ -44,6 +46,11 @@ jobs:
     runs-on: ${{ matrix.args.runner }}
     steps:
       - uses: gardener/cc-utils/.github/actions/trusted-checkout@master
+      - name: import-release-commit
+        uses: gardener/cc-utils/.github/actions/import-commit@master
+        with:
+          commit-objects-artefact: release-commit-objects
+          after-import: rebase
       - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5  # v5.5.0
         with:
           go-version-file: 'go.mod'
@@ -87,6 +94,8 @@ jobs:
         run: exit 1
 
   verify-others:
+    needs:
+      - prepare
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -102,6 +111,11 @@ jobs:
           - go-test
     steps:
       - uses: gardener/cc-utils/.github/actions/trusted-checkout@master
+      - name: import-release-commit
+        uses: gardener/cc-utils/.github/actions/import-commit@master
+        with:
+          commit-objects-artefact: release-commit-objects
+          after-import: rebase
       - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5  # v5.5.0
         with:
           go-version-file: go.mod
