@@ -56,7 +56,7 @@ jobs:
             name: gardenlogin
             os: linux
             architecture: arm64
-        - name: gardenlogin_windows_amd64
+        - name: gardenlogin_windows_amd64.exe
           type: ocm-resource
           id:
             name: gardenlogin

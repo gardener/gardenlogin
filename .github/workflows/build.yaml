@@ -64,7 +64,7 @@ jobs:
           LD_FLAGS="$(hack/get-build-ld-flags.sh)" \
           GOOS=${{ matrix.args.os }} \
           GOARCH=${{ matrix.args.arch }} \
-          out_file="/tmp/blobs.d/gardenlogin-${{ matrix.args.os}}-${{ matrix.args.arch }}" \
+          out_file="/tmp/blobs.d/gardenlogin-${{ matrix.args.os }}-${{ matrix.args.arch }}${{ matrix.args.os == 'windows' && '.exe' || '' }}" \
             hack/build.sh
       - uses: gardener/cc-utils/.github/actions/export-ocm-fragments@master
         with:
@@ -79,7 +79,7 @@ jobs:
             access:
               type: localBlob
               localReference: >-
-                gardenlogin-${{ matrix.args.os }}-${{ matrix.args.arch }}
+                gardenlogin-${{ matrix.args.os }}-${{ matrix.args.arch }}${{ matrix.args.os == 'windows' && '.exe' || '' }}
 
   build-gardenlogin-summary:
     name: Build Summary
