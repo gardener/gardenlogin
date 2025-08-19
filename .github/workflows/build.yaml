@@ -100,8 +100,9 @@ jobs:
     permissions:
       contents: read
     env:
-      GOLANGCI_LINT_ADDITIONAL_FLAGS: --verbose --timeout 2m
-      GO_TEST_ADDITIONAL_FLAGS: -race
+      GO_TEST_RACE: 1
+      GOLANGCI_LINT_VERBOSE: 1
+      GOLANGCI_LINT_TIMEOUT: 2m
     strategy:
       fail-fast: false
       matrix:
