@@ -8,12 +8,12 @@ on:
         required: true
         type: string
 
+permissions:
+  contents: none  # we rely on the GitHub App token instead
+
 jobs:
   call-dashboard-workflow:
     uses: gardener/dashboard/.github/workflows/prepare-hotfix-branch.yaml@master
-    permissions:
-      contents: write
-      pull-requests: write
     with:
       tag: ${{ inputs.tag }}
     secrets:
