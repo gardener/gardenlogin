@@ -30,7 +30,6 @@ jobs:
     with:
       release-commit-target: branch
       next-version: ${{ inputs.next-version }}
-      next-version-callback-action-path: ./.github/actions/prepare-release
       slack-channel-id: C01BKP30K1U # #sap-tech-gardenctl
       assets: |
         - name: gardenlogin_darwin_amd64
