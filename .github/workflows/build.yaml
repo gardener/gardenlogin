@@ -102,7 +102,7 @@ jobs:
     env:
       GO_TEST_RACE: 1
       GOLANGCI_LINT_VERBOSE: 1
-      GOLANGCI_LINT_TIMEOUT: 2m
+      GOLANGCI_LINT_TIMEOUT: 5m
     strategy:
       fail-fast: false
       matrix:
