@@ -12,6 +12,8 @@ path = [
   ".gimps.yaml",
   ".golangci.yaml",
   "CODEOWNERS",
+  "OWNERS",
+  "OWNERS_ALIASES",
   "go.mod",
   "go.sum",
   "LATEST",
