@@ -583,6 +583,7 @@ users:
 				case "/namespaces/garden-myproject/shoots/mycluster/adminkubeconfig":
 					body := &authenticationv1alpha1.AdminKubeconfigRequest{}
 					BodyIntoObj(codec, req.Body, body)
+
 					wantExpirationSeconds := int64(42)
 					Expect(body.Spec.ExpirationSeconds).To(Equal(&wantExpirationSeconds))
 
@@ -594,6 +595,7 @@ users:
 				case "/namespaces/garden-myproject/shoots/mycluster/viewerkubeconfig":
 					body := &authenticationv1alpha1.ViewerKubeconfigRequest{}
 					BodyIntoObj(codec, req.Body, body)
+
 					wantExpirationSeconds := int64(42)
 					Expect(body.Spec.ExpirationSeconds).To(Equal(&wantExpirationSeconds))
 

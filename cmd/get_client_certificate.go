@@ -165,11 +165,13 @@ func NewCmdGetClientCertificate(f util.Factory, ioStreams util.IOStreams) *cobra
 			if err := o.Complete(f, cmd, args); err != nil {
 				return fmt.Errorf("failed to complete command options: %w", err)
 			}
+
 			if err := o.Validate(); err != nil {
 				return err
 			}
 
 			ctx := context.Background()
+
 			return o.RunGetClientCertificate(ctx)
 		},
 	}
