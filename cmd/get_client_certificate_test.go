@@ -115,7 +115,7 @@ var _ = Describe("GetClientCertificate", func() {
 			// valid GetClientCertificateOptions
 			o = c.GetClientCertificateOptions{
 				ShootCluster: &clientauthenticationv1.Cluster{
-					Server:                   "foo",
+					Server:                   "https://api.mycluster.myproject.foo",
 					CertificateAuthorityData: []byte("foo"),
 				},
 				ShootRef: c.ShootRef{
@@ -182,6 +182,17 @@ var _ = Describe("GetClientCertificate", func() {
 				It("should report an error", AssertError())
 			})
 
+			Describe("when name is not a valid DNS label", func() {
+				BeforeEach(func() {
+					o.ShootRef.Name = "Invalid_Name"
+					gotErr = o.Validate()
+				})
+				It("should report an error", func() {
+					Expect(gotErr).To(HaveOccurred())
+					Expect(gotErr.Error()).To(ContainSubstring("invalid shoot name"))
+				})
+			})
+
 			Describe("when namespace is not set", func() {
 				BeforeEach(func() {
 					o.ShootRef.Namespace = ""
@@ -189,6 +200,17 @@ var _ = Describe("GetClientCertificate", func() {
 					wantErrStr = "namespace must be specified"
 				})
 				It("should report an error", AssertError())
+			})
+
+			Describe("when namespace is not a valid name", func() {
+				BeforeEach(func() {
+					o.ShootRef.Namespace = "Invalid_Namespace"
+					gotErr = o.Validate()
+				})
+				It("should report an error", func() {
+					Expect(gotErr).To(HaveOccurred())
+					Expect(gotErr.Error()).To(ContainSubstring("invalid namespace"))
+				})
 			})
 
 			Describe("when GardenClusterIdentity is not set", func() {
@@ -200,9 +222,42 @@ var _ = Describe("GetClientCertificate", func() {
 				It("should report an error", AssertError())
 			})
 
+			Describe("when GardenClusterIdentity contains invalid characters", func() {
+				BeforeEach(func() {
+					o.GardenClusterIdentity = "landscape.dev"
+					gotErr = o.Validate()
+					wantErrStr = "garden cluster identity must contain only alphanumeric characters, underscore or hyphen"
+				})
+				It("should report an error", AssertError())
+			})
+
+			Describe("when GardenClusterIdentity does not start or end with an alphanumeric character", func() {
+				BeforeEach(func() {
+					o.GardenClusterIdentity = "-landscape-dev-"
+					gotErr = o.Validate()
+					wantErrStr = "garden cluster identity must start and end with an alphanumeric character"
+				})
+				It("should report an error", AssertError())
+			})
+
 			Context("KUBERNETES_EXEC_INFO is set", func() {
 				BeforeEach(func() {
 					Expect(os.Setenv("KUBERNETES_EXEC_INFO", "dummy")).To(Succeed())
+				})
+
+				Describe("when cluster server is a valid https URL", func() {
+					BeforeEach(func() {
+						gotErr = o.Validate()
+					})
+					It("should not report an error", AssertSuccess())
+				})
+
+				Describe("when cluster server is a valid http URL", func() {
+					BeforeEach(func() {
+						o.ShootCluster.Server = "http://api.mycluster.myproject.foo"
+						gotErr = o.Validate()
+					})
+					It("should not report an error", AssertSuccess())
 				})
 
 				Describe("when cluster is not set", func() {
@@ -219,6 +274,26 @@ var _ = Describe("GetClientCertificate", func() {
 						o.ShootCluster.Server = ""
 						gotErr = o.Validate()
 						wantErrStr = "server must be specified"
+					})
+					It("should report an error", AssertError())
+				})
+
+				Describe("when cluster server is not a valid URL", func() {
+					BeforeEach(func() {
+						o.ShootCluster.Server = "://invalid-url"
+						gotErr = o.Validate()
+					})
+					It("should report an error", func() {
+						Expect(gotErr).To(HaveOccurred())
+						Expect(gotErr.Error()).To(ContainSubstring("server must be a valid URL"))
+					})
+				})
+
+				Describe("when cluster server has unsupported scheme", func() {
+					BeforeEach(func() {
+						o.ShootCluster.Server = "ftp://example.com"
+						gotErr = o.Validate()
+						wantErrStr = "server URL scheme must be http or https, got \"ftp\""
 					})
 					It("should report an error", AssertError())
 				})
