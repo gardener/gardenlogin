@@ -380,6 +380,145 @@ var _ = Describe("GetClientCertificate", func() {
 		})
 	})
 
+	Context("Cached certificate validation", func() {
+		var (
+			caCert     *secrets.Certificate
+			clientCert *secrets.Certificate
+			storeKey   certificatecache.Key
+			f          *TestFactory
+			cmd        *cobra.Command
+		)
+
+		BeforeEach(func() {
+			DeferCleanup(test.WithVar(&secrets.Clock, testing.NewFakeClock(fakeNow())))
+
+			storeKey = certificatecache.Key{
+				ShootServer:           "https://api.mycluster.myproject.foo",
+				ShootName:             "mycluster",
+				ShootNamespace:        "garden-myproject",
+				GardenClusterIdentity: "landscape-dev",
+				AccessLevel:           "auto",
+			}
+
+			f = &TestFactory{
+				gardenClusterIdentity: "landscape-dev",
+				homeDirectoy:          "/Users/foo",
+				clock:                 newFakeClock(),
+				store:                 newFakeStore(),
+			}
+
+			cmd = c.NewCmdGetClientCertificate(f, ioStreams)
+			cmd.SetArgs([]string{})
+
+			caCert = generateCaCert()
+			clientCert = generateClientCert(caCert, 10*time.Minute)
+
+			execInfo, err := json.Marshal(&v1ExecCredential)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(os.Setenv("KUBERNETES_EXEC_INFO", string(execInfo))).To(Succeed())
+		})
+
+		AfterEach(func() {
+			Expect(os.Unsetenv("KUBERNETES_EXEC_INFO")).To(Succeed())
+		})
+
+		It("should reject cached certificate with invalid format", func() {
+			By("Storing invalid certificate in cache")
+			invalidCert := append([]byte("garbage"), clientCert.CertificatePEM...)
+			cachedCertificateSet := certificatecache.CertificateSet{
+				ClientCertificateData: invalidCert,
+				ClientKeyData:         clientCert.PrivateKeyPEM,
+			}
+			f.store.inMemory[storeKey] = struct {
+				certificateSet *certificatecache.CertificateSet
+				err            error
+			}{
+				certificateSet: &cachedCertificateSet,
+				err:            nil,
+			}
+
+			By("executing the command")
+			err := cmd.Execute()
+
+			By("Expecting error about invalid cached certificate")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("invalid cached certificate"))
+			Expect(err.Error()).To(ContainSubstring("client certificate must start with a PEM BEGIN line"))
+		})
+
+		It("should reject cached certificate with trailing data", func() {
+			By("Storing certificate with trailing data in cache")
+			certWithTrailing := append(clientCert.CertificatePEM, []byte("\ntrailing garbage")...)
+			cachedCertificateSet := certificatecache.CertificateSet{
+				ClientCertificateData: certWithTrailing,
+				ClientKeyData:         clientCert.PrivateKeyPEM,
+			}
+			f.store.inMemory[storeKey] = struct {
+				certificateSet *certificatecache.CertificateSet
+				err            error
+			}{
+				certificateSet: &cachedCertificateSet,
+				err:            nil,
+			}
+
+			By("executing the command")
+			err := cmd.Execute()
+
+			By("Expecting error about invalid cached certificate")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("invalid cached certificate"))
+			Expect(err.Error()).To(ContainSubstring("must contain exactly one PEM block"))
+		})
+
+		It("should reject cached key with invalid format", func() {
+			By("Storing invalid key in cache")
+			invalidKey := append([]byte("garbage"), clientCert.PrivateKeyPEM...)
+			cachedCertificateSet := certificatecache.CertificateSet{
+				ClientCertificateData: clientCert.CertificatePEM,
+				ClientKeyData:         invalidKey,
+			}
+			f.store.inMemory[storeKey] = struct {
+				certificateSet *certificatecache.CertificateSet
+				err            error
+			}{
+				certificateSet: &cachedCertificateSet,
+				err:            nil,
+			}
+
+			By("executing the command")
+			err := cmd.Execute()
+
+			By("Expecting error about invalid cached key")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("invalid cached client key"))
+			Expect(err.Error()).To(ContainSubstring("client key must start with a PEM BEGIN line"))
+		})
+
+		It("should reject cached key with trailing data", func() {
+			By("Storing key with trailing data in cache")
+			keyWithTrailing := append(clientCert.PrivateKeyPEM, []byte("\ntrailing garbage")...)
+			cachedCertificateSet := certificatecache.CertificateSet{
+				ClientCertificateData: clientCert.CertificatePEM,
+				ClientKeyData:         keyWithTrailing,
+			}
+			f.store.inMemory[storeKey] = struct {
+				certificateSet *certificatecache.CertificateSet
+				err            error
+			}{
+				certificateSet: &cachedCertificateSet,
+				err:            nil,
+			}
+
+			By("executing the command")
+			err := cmd.Execute()
+
+			By("Expecting error about invalid cached key")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("invalid cached client key"))
+			Expect(err.Error()).To(ContainSubstring("must contain exactly one PEM block"))
+		})
+	})
+
 	Context("Tests expecting success", func() {
 		var (
 			caCert     *secrets.Certificate

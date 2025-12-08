@@ -366,6 +366,14 @@ func (o *GetClientCertificateOptions) getExecCredential(ctx context.Context, cer
 	logger := klog.FromContext(ctx)
 
 	if cachedCertificateSet != nil {
+		if err := ValidateClientCertificate(cachedCertificateSet.ClientCertificateData); err != nil {
+			return nil, fmt.Errorf("invalid cached certificate: %w", err)
+		}
+
+		if err := ValidateClientKey(cachedCertificateSet.ClientKeyData); err != nil {
+			return nil, fmt.Errorf("invalid cached client key: %w", err)
+		}
+
 		certPem, _ := pem.Decode(cachedCertificateSet.ClientCertificateData)
 		if certPem == nil {
 			return nil, errors.New("no PEM data found")
