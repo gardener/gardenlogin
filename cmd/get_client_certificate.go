@@ -13,14 +13,18 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
 
 	authenticationv1alpha1 "github.com/gardener/gardener/pkg/apis/authentication/v1alpha1"
 	gardenscheme "github.com/gardener/gardener/pkg/client/core/clientset/versioned/scheme"
 	"github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	apivalidation "k8s.io/apimachinery/pkg/api/validation"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -267,8 +271,8 @@ func (o *GetClientCertificateOptions) Validate() error {
 			return errors.New("cluster must be specified")
 		}
 
-		if len(o.ShootCluster.Server) == 0 {
-			return errors.New("server must be specified")
+		if err := validateServer(o.ShootCluster.Server); err != nil {
+			return err
 		}
 	}
 
@@ -276,16 +280,41 @@ func (o *GetClientCertificateOptions) Validate() error {
 		return errors.New("name must be specified. Hint: update kubectl in case you are using a version older than v1.20.0")
 	}
 
+	if errs := apivalidation.NameIsDNSLabel(o.ShootRef.Name, false); len(errs) > 0 {
+		return fmt.Errorf("invalid shoot name %q: %s", o.ShootRef.Name, strings.Join(errs, ", "))
+	}
+
 	if len(o.ShootRef.Namespace) == 0 {
 		return errors.New("namespace must be specified")
 	}
 
-	if len(o.GardenClusterIdentity) == 0 {
-		return errors.New("garden cluster identity must be specified")
+	if errs := apivalidation.ValidateNamespaceName(o.ShootRef.Namespace, false); len(errs) > 0 {
+		return fmt.Errorf("invalid namespace %q: %s", o.ShootRef.Namespace, strings.Join(errs, ", "))
+	}
+
+	if err := ValidateGardenClusterIdentity(o.GardenClusterIdentity); err != nil {
+		return err
 	}
 
 	if !slices.Contains(o.AllowedAccessLevels(), o.AccessLevel) {
 		return fmt.Errorf("invalid access level: %s. Access level must be one of %v", o.AccessLevel, o.AllowedAccessLevels())
+	}
+
+	return nil
+}
+
+func validateServer(server string) error {
+	if len(server) == 0 {
+		return errors.New("server must be specified")
+	}
+
+	u, err := url.Parse(server)
+	if err != nil {
+		return fmt.Errorf("server must be a valid URL: %w", err)
+	}
+
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return fmt.Errorf("server URL scheme must be http or https, got %q", u.Scheme)
 	}
 
 	return nil
@@ -590,4 +619,30 @@ func authInfoFromConfigForUserName(config api.Config, userName string) (*api.Aut
 	}
 
 	return nil, fmt.Errorf("no matching user config found for user name %s", userName)
+}
+
+var (
+	// allowedCharsPattern checks if the string contains only alphanumeric characters, underscore or hyphen.
+	allowedCharsPattern = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
+	// startsAndEndsWithAlphanumericPattern checks if the string starts and ends with an alphanumeric character.
+	startsAndEndsWithAlphanumericPattern = regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9_-]*[a-zA-Z0-9])?$`)
+)
+
+// ValidateGardenClusterIdentity validates that a garden cluster identity follows the naming rules:
+// 1. Must contain only alphanumeric characters, underscore or hyphen
+// 2. Must start and end with an alphanumeric character.
+func ValidateGardenClusterIdentity(identity string) error {
+	if len(identity) == 0 {
+		return errors.New("garden cluster identity must be specified")
+	}
+
+	if !allowedCharsPattern.MatchString(identity) {
+		return errors.New("garden cluster identity must contain only alphanumeric characters, underscore or hyphen")
+	}
+
+	if !startsAndEndsWithAlphanumericPattern.MatchString(identity) {
+		return errors.New("garden cluster identity must start and end with an alphanumeric character")
+	}
+
+	return nil
 }
