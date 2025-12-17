@@ -310,6 +310,215 @@ var _ = Describe("GetClientCertificate", func() {
 		})
 	})
 
+	Context("Certificate and Key Validation", func() {
+		var (
+			caCert     *secrets.Certificate
+			clientCert *secrets.Certificate
+		)
+
+		BeforeEach(func() {
+			DeferCleanup(test.WithVar(&secrets.Clock, testing.NewFakeClock(fakeNow())))
+			caCert = generateCaCert()
+			clientCert = generateClientCert(caCert, 10*time.Minute)
+		})
+
+		Describe("validateClientCertificate", func() {
+			It("should accept a valid certificate", func() {
+				err := c.ValidateClientCertificate(clientCert.CertificatePEM)
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			It("should reject data not starting with PEM BEGIN line", func() {
+				err := c.ValidateClientCertificate([]byte("garbage-----BEGIN CERTIFICATE-----\n..."))
+				Expect(err).To(MatchError("client certificate must start with a PEM BEGIN line"))
+			})
+
+			It("should reject data with trailing garbage after PEM block", func() {
+				certWithTrailing := append(clientCert.CertificatePEM, []byte("\ngarbage data")...)
+				err := c.ValidateClientCertificate(certWithTrailing)
+				Expect(err).To(MatchError("client certificate must contain exactly one PEM block (unexpected data after END line)"))
+			})
+
+			It("should reject invalid PEM data", func() {
+				err := c.ValidateClientCertificate([]byte("-----BEGIN CERTIFICATE-----\ninvalid\n-----END CERTIFICATE-----"))
+				Expect(err).To(MatchError("client certificate must be a valid PEM-encoded certificate"))
+			})
+
+			It("should reject non-certificate data", func() {
+				err := c.ValidateClientCertificate([]byte("not a certificate"))
+				Expect(err).To(MatchError("client certificate must start with a PEM BEGIN line"))
+			})
+		})
+
+		Describe("validateClientKey", func() {
+			It("should accept a valid private key", func() {
+				err := c.ValidateClientKey(clientCert.PrivateKeyPEM)
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			It("should reject data not starting with PEM BEGIN line", func() {
+				err := c.ValidateClientKey([]byte("garbage-----BEGIN RSA PRIVATE KEY-----\n..."))
+				Expect(err).To(MatchError("client key must start with a PEM BEGIN line"))
+			})
+
+			It("should reject data with trailing garbage after PEM block", func() {
+				keyWithTrailing := append(clientCert.PrivateKeyPEM, []byte("\ngarbage data")...)
+				err := c.ValidateClientKey(keyWithTrailing)
+				Expect(err).To(MatchError("client key must contain exactly one PEM block (unexpected data after END line)"))
+			})
+
+			It("should reject invalid PEM data", func() {
+				err := c.ValidateClientKey([]byte("-----BEGIN RSA PRIVATE KEY-----\ninvalid\n-----END RSA PRIVATE KEY-----"))
+				Expect(err).To(HaveOccurred())
+				Expect(err).To(MatchError("client key must be a valid PEM-encoded key"))
+			})
+
+			It("should reject non-key data", func() {
+				err := c.ValidateClientKey([]byte("not a key"))
+				Expect(err).To(MatchError("client key must start with a PEM BEGIN line"))
+			})
+		})
+	})
+
+	Context("Cached certificate validation", func() {
+		var (
+			caCert     *secrets.Certificate
+			clientCert *secrets.Certificate
+			storeKey   certificatecache.Key
+			f          *TestFactory
+			cmd        *cobra.Command
+		)
+
+		BeforeEach(func() {
+			DeferCleanup(test.WithVar(&secrets.Clock, testing.NewFakeClock(fakeNow())))
+
+			storeKey = certificatecache.Key{
+				ShootServer:           "https://api.mycluster.myproject.foo",
+				ShootName:             "mycluster",
+				ShootNamespace:        "garden-myproject",
+				GardenClusterIdentity: "landscape-dev",
+				AccessLevel:           "auto",
+			}
+
+			f = &TestFactory{
+				gardenClusterIdentity: "landscape-dev",
+				homeDirectoy:          "/Users/foo",
+				clock:                 newFakeClock(),
+				store:                 newFakeStore(),
+			}
+
+			cmd = c.NewCmdGetClientCertificate(f, ioStreams)
+			cmd.SetArgs([]string{})
+
+			caCert = generateCaCert()
+			clientCert = generateClientCert(caCert, 10*time.Minute)
+
+			execInfo, err := json.Marshal(&v1ExecCredential)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(os.Setenv("KUBERNETES_EXEC_INFO", string(execInfo))).To(Succeed())
+		})
+
+		AfterEach(func() {
+			Expect(os.Unsetenv("KUBERNETES_EXEC_INFO")).To(Succeed())
+		})
+
+		It("should reject cached certificate with invalid format", func() {
+			By("Storing invalid certificate in cache")
+			invalidCert := append([]byte("garbage"), clientCert.CertificatePEM...)
+			cachedCertificateSet := certificatecache.CertificateSet{
+				ClientCertificateData: invalidCert,
+				ClientKeyData:         clientCert.PrivateKeyPEM,
+			}
+			f.store.inMemory[storeKey] = struct {
+				certificateSet *certificatecache.CertificateSet
+				err            error
+			}{
+				certificateSet: &cachedCertificateSet,
+				err:            nil,
+			}
+
+			By("executing the command")
+			err := cmd.Execute()
+
+			By("Expecting error about invalid cached certificate")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("invalid cached certificate"))
+			Expect(err.Error()).To(ContainSubstring("client certificate must start with a PEM BEGIN line"))
+		})
+
+		It("should reject cached certificate with trailing data", func() {
+			By("Storing certificate with trailing data in cache")
+			certWithTrailing := append(clientCert.CertificatePEM, []byte("\ntrailing garbage")...)
+			cachedCertificateSet := certificatecache.CertificateSet{
+				ClientCertificateData: certWithTrailing,
+				ClientKeyData:         clientCert.PrivateKeyPEM,
+			}
+			f.store.inMemory[storeKey] = struct {
+				certificateSet *certificatecache.CertificateSet
+				err            error
+			}{
+				certificateSet: &cachedCertificateSet,
+				err:            nil,
+			}
+
+			By("executing the command")
+			err := cmd.Execute()
+
+			By("Expecting error about invalid cached certificate")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("invalid cached certificate"))
+			Expect(err.Error()).To(ContainSubstring("must contain exactly one PEM block"))
+		})
+
+		It("should reject cached key with invalid format", func() {
+			By("Storing invalid key in cache")
+			invalidKey := append([]byte("garbage"), clientCert.PrivateKeyPEM...)
+			cachedCertificateSet := certificatecache.CertificateSet{
+				ClientCertificateData: clientCert.CertificatePEM,
+				ClientKeyData:         invalidKey,
+			}
+			f.store.inMemory[storeKey] = struct {
+				certificateSet *certificatecache.CertificateSet
+				err            error
+			}{
+				certificateSet: &cachedCertificateSet,
+				err:            nil,
+			}
+
+			By("executing the command")
+			err := cmd.Execute()
+
+			By("Expecting error about invalid cached key")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("invalid cached client key"))
+			Expect(err.Error()).To(ContainSubstring("client key must start with a PEM BEGIN line"))
+		})
+
+		It("should reject cached key with trailing data", func() {
+			By("Storing key with trailing data in cache")
+			keyWithTrailing := append(clientCert.PrivateKeyPEM, []byte("\ntrailing garbage")...)
+			cachedCertificateSet := certificatecache.CertificateSet{
+				ClientCertificateData: clientCert.CertificatePEM,
+				ClientKeyData:         keyWithTrailing,
+			}
+			f.store.inMemory[storeKey] = struct {
+				certificateSet *certificatecache.CertificateSet
+				err            error
+			}{
+				certificateSet: &cachedCertificateSet,
+				err:            nil,
+			}
+
+			By("executing the command")
+			err := cmd.Execute()
+
+			By("Expecting error about invalid cached key")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("invalid cached client key"))
+			Expect(err.Error()).To(ContainSubstring("must contain exactly one PEM block"))
+		})
+	})
+
 	Context("Tests expecting success", func() {
 		var (
 			caCert     *secrets.Certificate
@@ -344,7 +553,7 @@ var _ = Describe("GetClientCertificate", func() {
 			caCert = generateCaCert()
 			clientCert = generateClientCert(caCert, validity)
 
-			restClient = fakeKubeconfigRESTClient(expirationTime, nil)
+			restClient = fakeKubeconfigRESTClient(expirationTime, nil, clientCert.CertificatePEM, clientCert.PrivateKeyPEM)
 		})
 
 		Context("KUBERNETES_EXEC_INFO is set", func() {
@@ -421,15 +630,15 @@ var _ = Describe("GetClientCertificate", func() {
 `,
 						version,
 						expirationTime.Format(time.RFC3339),
-						"admin",
-						"key",
+						string(clientCert.CertificatePEM),
+						string(clientCert.PrivateKeyPEM),
 					)))
 					Expect(errOut.String()).To(BeEmpty())
 
 					By("Expecting certificate to be stored in cache")
 					wantCertificateSet := certificatecache.CertificateSet{
-						ClientCertificateData: []byte("admin"),
-						ClientKeyData:         []byte("key"),
+						ClientCertificateData: clientCert.CertificatePEM,
+						ClientKeyData:         clientCert.PrivateKeyPEM,
 					}
 					Expect(f.store.inMemory[storeKey]).To(Equal(struct {
 						certificateSet *certificatecache.CertificateSet
@@ -444,13 +653,13 @@ var _ = Describe("GetClientCertificate", func() {
 			)
 
 			DescribeTable("Should fetch the client certificate for different access levels",
-				func(accessLevel string, clientCertificateData string, forbiddenPaths []string) {
+				func(accessLevel string, forbiddenPaths []string) {
 					execInfo, err := json.Marshal(&v1ExecCredential)
 					Expect(err).ToNot(HaveOccurred())
 					Expect(os.Setenv("KUBERNETES_EXEC_INFO", string(execInfo))).To(Succeed())
 
 					By("By using fake RESTClient")
-					f.restClient = fakeKubeconfigRESTClient(expirationTime, forbiddenPaths)
+					f.restClient = fakeKubeconfigRESTClient(expirationTime, forbiddenPaths, clientCert.CertificatePEM, clientCert.PrivateKeyPEM)
 
 					By("executing the command")
 					Expect(cmd.ParseFlags([]string{
@@ -464,15 +673,15 @@ var _ = Describe("GetClientCertificate", func() {
 						`{"kind":"ExecCredential","apiVersion":"client.authentication.k8s.io/v1","spec":{"interactive":false},"status":{"expirationTimestamp":%q,"clientCertificateData":%q,"clientKeyData":%q}}
 `,
 						expirationTime.Format(time.RFC3339),
-						clientCertificateData,
-						"key",
+						string(clientCert.CertificatePEM),
+						string(clientCert.PrivateKeyPEM),
 					)))
 					Expect(errOut.String()).To(BeEmpty())
 
 					By("Expecting certificate to be stored in cache")
 					wantCertificateSet := certificatecache.CertificateSet{
-						ClientCertificateData: []byte(clientCertificateData),
-						ClientKeyData:         []byte("key"),
+						ClientCertificateData: clientCert.CertificatePEM,
+						ClientKeyData:         clientCert.PrivateKeyPEM,
 					}
 
 					storeKey.AccessLevel = accessLevel
@@ -484,10 +693,10 @@ var _ = Describe("GetClientCertificate", func() {
 						err:            nil,
 					}))
 				},
-				Entry("admin should fetch admin credential", "admin", "admin", nil),
-				Entry("viewer should fetch viewer credential", "viewer", "viewer", nil),
-				Entry("auto should fallback to viewer credential", "auto", "admin", nil),
-				Entry("auto should fallback to viewer credential", "auto", "viewer", []string{"/namespaces/garden-myproject/shoots/mycluster/adminkubeconfig"}),
+				Entry("admin should fetch admin credential", "admin", nil),
+				Entry("viewer should fetch viewer credential", "viewer", nil),
+				Entry("auto should fetch admin credential", "auto", nil),
+				Entry("auto should fallback to viewer credential", "auto", []string{"/namespaces/garden-myproject/shoots/mycluster/adminkubeconfig"}),
 			)
 		})
 
@@ -553,15 +762,15 @@ var _ = Describe("GetClientCertificate", func() {
 					`{"kind":"ExecCredential","apiVersion":"client.authentication.k8s.io/v1beta1","spec":{"interactive":false},"status":{"expirationTimestamp":%q,"clientCertificateData":%q,"clientKeyData":%q}}
 `,
 					expirationTime.Format(time.RFC3339),
-					"admin",
-					"key",
+					string(clientCert.CertificatePEM),
+					string(clientCert.PrivateKeyPEM),
 				)))
 				Expect(errOut.String()).To(BeEmpty())
 
 				By("Expecting certificate to be stored in cache")
 				wantCertificateSet := certificatecache.CertificateSet{
-					ClientCertificateData: []byte("admin"),
-					ClientKeyData:         []byte("key"),
+					ClientCertificateData: clientCert.CertificatePEM,
+					ClientKeyData:         clientCert.PrivateKeyPEM,
 				}
 				Expect(f.store.inMemory[storeKey]).To(Equal(struct {
 					certificateSet *certificatecache.CertificateSet
@@ -575,34 +784,14 @@ var _ = Describe("GetClientCertificate", func() {
 	})
 })
 
-func fakeKubeconfigRESTClient(expirationTime time.Time, forbiddenPaths []string) *fake.RESTClient {
+func fakeKubeconfigRESTClient(expirationTime time.Time, forbiddenPaths []string, certPEM, keyPEM []byte) *fake.RESTClient {
 	codecs := serializer.NewCodecFactory(clientgoscheme.Scheme)
 	codec := codecs.LegacyCodec(authenticationv1alpha1.SchemeGroupVersion)
 
-	adminKubeconfig := `
-apiVersion: v1
-clusters:
-- cluster:
-    certificate-authority-data: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCi4uLgotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0t
-    server: https://api.mycluster.myproject.foo
-  name: shoot--myproject--mycluster
-contexts:
-- context:
-    cluster: shoot--myproject--mycluster
-    user: shoot--myproject--mycluster
-  name: shoot--myproject--mycluster
-current-context: shoot--myproject--mycluster
-kind: Config
-preferences: {}
-users:
-- name: shoot--myproject--mycluster
-  user:
-    client-certificate-data: YWRtaW4=
-    client-key-data: a2V5
-`
+	certB64 := base64.StdEncoding.EncodeToString(certPEM)
+	keyB64 := base64.StdEncoding.EncodeToString(keyPEM)
 
-	viewerKubeconfig := `
-apiVersion: v1
+	kubeconfigTemplate := `apiVersion: v1
 clusters:
 - cluster:
     certificate-authority-data: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCi4uLgotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0t
@@ -619,19 +808,20 @@ preferences: {}
 users:
 - name: shoot--myproject--mycluster
   user:
-    client-certificate-data: dmlld2Vy
-    client-key-data: a2V5
+    client-certificate-data: %s
+    client-key-data: %s
 `
+	kubeconfig := fmt.Sprintf(kubeconfigTemplate, certB64, keyB64)
 
 	adminKubeconfigResponse := &authenticationv1alpha1.AdminKubeconfigRequest{
 		Status: authenticationv1alpha1.AdminKubeconfigRequestStatus{
-			Kubeconfig:          []byte(adminKubeconfig),
+			Kubeconfig:          []byte(kubeconfig),
 			ExpirationTimestamp: metav1.Time{Time: expirationTime},
 		},
 	}
 	viewerKubeconfigResponse := &authenticationv1alpha1.ViewerKubeconfigRequest{
 		Status: authenticationv1alpha1.ViewerKubeconfigRequestStatus{
-			Kubeconfig:          []byte(viewerKubeconfig),
+			Kubeconfig:          []byte(kubeconfig),
 			ExpirationTimestamp: metav1.Time{Time: expirationTime},
 		},
 	}

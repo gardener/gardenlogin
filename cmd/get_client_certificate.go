@@ -7,6 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package cmd
 
 import (
+	"bytes"
 	"context"
 	"crypto/x509"
 	"encoding/json"
@@ -365,6 +366,14 @@ func (o *GetClientCertificateOptions) getExecCredential(ctx context.Context, cer
 	logger := klog.FromContext(ctx)
 
 	if cachedCertificateSet != nil {
+		if err := ValidateClientCertificate(cachedCertificateSet.ClientCertificateData); err != nil {
+			return nil, fmt.Errorf("invalid cached certificate: %w", err)
+		}
+
+		if err := ValidateClientKey(cachedCertificateSet.ClientKeyData); err != nil {
+			return nil, fmt.Errorf("invalid cached client key: %w", err)
+		}
+
 		certPem, _ := pem.Decode(cachedCertificateSet.ClientCertificateData)
 		if certPem == nil {
 			return nil, errors.New("no PEM data found")
@@ -406,6 +415,14 @@ func (o *GetClientCertificateOptions) getExecCredential(ctx context.Context, cer
 	userConfig, err := authInfoFromKubeconfigForCluster(kubeconfigRequest.kubeconfig, o.ShootCluster)
 	if err != nil {
 		return nil, fmt.Errorf("could not find matching auth info from shoot kubeconfig for given cluster: %w", err)
+	}
+
+	if err := ValidateClientCertificate(userConfig.ClientCertificateData); err != nil {
+		return nil, fmt.Errorf("invalid client certificate returned from garden cluster: %w", err)
+	}
+
+	if err := ValidateClientKey(userConfig.ClientKeyData); err != nil {
+		return nil, fmt.Errorf("invalid client key returned from garden cluster: %w", err)
 	}
 
 	certificateSet := certificatecache.CertificateSet{
@@ -645,4 +662,73 @@ func ValidateGardenClusterIdentity(identity string) error {
 	}
 
 	return nil
+}
+
+// ValidateClientCertificate ensures the client certificate:
+// - is exactly one PEM block (no extra data before/after)
+// - has no PEM headers
+// - parses as a valid X.509 certificate.
+func ValidateClientCertificate(certData []byte) error {
+	if !bytes.HasPrefix(certData, []byte("-----BEGIN ")) {
+		return errors.New("client certificate must start with a PEM BEGIN line")
+	}
+
+	block, rest := pem.Decode(certData)
+	if block == nil {
+		return errors.New("client certificate must be a valid PEM-encoded certificate")
+	}
+
+	if len(bytes.TrimSpace(rest)) > 0 {
+		return errors.New("client certificate must contain exactly one PEM block (unexpected data after END line)")
+	}
+
+	if len(block.Headers) != 0 {
+		return errors.New("client certificate must not include PEM headers")
+	}
+
+	if _, err := x509.ParseCertificate(block.Bytes); err != nil {
+		return fmt.Errorf("client certificate cannot be parsed as X.509 certificate: %w", err)
+	}
+
+	return nil
+}
+
+// ValidateClientKey ensures the client key:
+// - is exactly one PEM block (no extra data before/after)
+// - has no PEM headers
+// - parses as a valid private key in PKCS#1 or PKCS#8 format.
+func ValidateClientKey(keyData []byte) error {
+	if !bytes.HasPrefix(keyData, []byte("-----BEGIN ")) {
+		return errors.New("client key must start with a PEM BEGIN line")
+	}
+
+	block, rest := pem.Decode(keyData)
+	if block == nil {
+		return errors.New("client key must be a valid PEM-encoded key")
+	}
+
+	if len(bytes.TrimSpace(rest)) > 0 {
+		return errors.New("client key must contain exactly one PEM block (unexpected data after END line)")
+	}
+
+	if len(block.Headers) != 0 {
+		return errors.New("client key must not include PEM headers")
+	}
+
+	// Gardener uses "RSA PRIVATE KEY" for both PKCS#1 and PKCS#8
+	if block.Type != "RSA PRIVATE KEY" {
+		return fmt.Errorf("unexpected PEM block type %q, expected RSA PRIVATE KEY", block.Type)
+	}
+
+	// Try PKCS#1 first (current Gardener default)
+	if _, err := x509.ParsePKCS1PrivateKey(block.Bytes); err == nil {
+		return nil
+	}
+
+	// Try PKCS#8 (Gardener supports this, just doesn't use it by default yet)
+	if _, err := x509.ParsePKCS8PrivateKey(block.Bytes); err == nil {
+		return nil
+	}
+
+	return errors.New("client key is not a valid private key (tried PKCS#1 and PKCS#8 formats)")
 }
