@@ -11,6 +11,7 @@ path = [
   ".gitignore",
   ".gimps.yaml",
   ".golangci.yaml",
+  ".ocm/branch-info.yaml",
   "CODEOWNERS",
   "go.mod",
   "go.sum",
