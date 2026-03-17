@@ -21,6 +21,7 @@ var _ = Describe("Store", func() {
 
 	BeforeEach(func() {
 		var err error
+
 		s = Store{}
 		s.Dir, err = os.MkdirTemp("", "store")
 		Expect(err).ToNot(HaveOccurred())
