@@ -60,6 +60,7 @@ var _ = Describe("GetClientCertificate", func() {
 		expirationTime = fakeNow().Add(10 * time.Minute)
 
 		var err error
+
 		shootCaData, err = base64.StdEncoding.DecodeString("LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCi4uLgotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0t")
 		Expect(err).ToNot(HaveOccurred())
 
@@ -111,6 +112,7 @@ var _ = Describe("GetClientCertificate", func() {
 			gotErr     error
 			wantErrStr string
 		)
+
 		BeforeEach(func() {
 			// valid GetClientCertificateOptions
 			o = c.GetClientCertificateOptions{
@@ -318,6 +320,7 @@ var _ = Describe("GetClientCertificate", func() {
 
 		BeforeEach(func() {
 			DeferCleanup(test.WithVar(&secrets.Clock, testing.NewFakeClock(fakeNow())))
+
 			caCert = generateCaCert()
 			clientCert = generateClientCert(caCert, 10*time.Minute)
 		})
@@ -424,6 +427,7 @@ var _ = Describe("GetClientCertificate", func() {
 
 		It("should reject cached certificate with invalid format", func() {
 			By("Storing invalid certificate in cache")
+
 			invalidCert := append([]byte("garbage"), clientCert.CertificatePEM...)
 			cachedCertificateSet := certificatecache.CertificateSet{
 				ClientCertificateData: invalidCert,
@@ -438,6 +442,7 @@ var _ = Describe("GetClientCertificate", func() {
 			}
 
 			By("executing the command")
+
 			err := cmd.Execute()
 
 			By("Expecting error about invalid cached certificate")
@@ -448,6 +453,7 @@ var _ = Describe("GetClientCertificate", func() {
 
 		It("should reject cached certificate with trailing data", func() {
 			By("Storing certificate with trailing data in cache")
+
 			certWithTrailing := append(clientCert.CertificatePEM, []byte("\ntrailing garbage")...)
 			cachedCertificateSet := certificatecache.CertificateSet{
 				ClientCertificateData: certWithTrailing,
@@ -462,6 +468,7 @@ var _ = Describe("GetClientCertificate", func() {
 			}
 
 			By("executing the command")
+
 			err := cmd.Execute()
 
 			By("Expecting error about invalid cached certificate")
@@ -472,6 +479,7 @@ var _ = Describe("GetClientCertificate", func() {
 
 		It("should reject cached key with invalid format", func() {
 			By("Storing invalid key in cache")
+
 			invalidKey := append([]byte("garbage"), clientCert.PrivateKeyPEM...)
 			cachedCertificateSet := certificatecache.CertificateSet{
 				ClientCertificateData: clientCert.CertificatePEM,
@@ -486,6 +494,7 @@ var _ = Describe("GetClientCertificate", func() {
 			}
 
 			By("executing the command")
+
 			err := cmd.Execute()
 
 			By("Expecting error about invalid cached key")
@@ -496,6 +505,7 @@ var _ = Describe("GetClientCertificate", func() {
 
 		It("should reject cached key with trailing data", func() {
 			By("Storing key with trailing data in cache")
+
 			keyWithTrailing := append(clientCert.PrivateKeyPEM, []byte("\ntrailing garbage")...)
 			cachedCertificateSet := certificatecache.CertificateSet{
 				ClientCertificateData: clientCert.CertificatePEM,
@@ -510,6 +520,7 @@ var _ = Describe("GetClientCertificate", func() {
 			}
 
 			By("executing the command")
+
 			err := cmd.Execute()
 
 			By("Expecting error about invalid cached key")
@@ -573,6 +584,7 @@ var _ = Describe("GetClientCertificate", func() {
 					f.restClient = nil
 
 					By("Ensure valid certificate is found in certificate cache")
+
 					cachedCertificateSet := certificatecache.CertificateSet{
 						ClientCertificateData: clientCert.CertificatePEM,
 						ClientKeyData:         clientCert.PrivateKeyPEM,
@@ -618,6 +630,7 @@ var _ = Describe("GetClientCertificate", func() {
 					Expect(os.Setenv("KUBERNETES_EXEC_INFO", string(execInfo))).To(Succeed())
 
 					By("By using fake RESTClient")
+
 					f.restClient = restClient
 
 					By("executing the command")
@@ -636,6 +649,7 @@ var _ = Describe("GetClientCertificate", func() {
 					Expect(errOut.String()).To(BeEmpty())
 
 					By("Expecting certificate to be stored in cache")
+
 					wantCertificateSet := certificatecache.CertificateSet{
 						ClientCertificateData: clientCert.CertificatePEM,
 						ClientKeyData:         clientCert.PrivateKeyPEM,
@@ -659,6 +673,7 @@ var _ = Describe("GetClientCertificate", func() {
 					Expect(os.Setenv("KUBERNETES_EXEC_INFO", string(execInfo))).To(Succeed())
 
 					By("By using fake RESTClient")
+
 					f.restClient = fakeKubeconfigRESTClient(expirationTime, forbiddenPaths, clientCert.CertificatePEM, clientCert.PrivateKeyPEM)
 
 					By("executing the command")
@@ -679,6 +694,7 @@ var _ = Describe("GetClientCertificate", func() {
 					Expect(errOut.String()).To(BeEmpty())
 
 					By("Expecting certificate to be stored in cache")
+
 					wantCertificateSet := certificatecache.CertificateSet{
 						ClientCertificateData: clientCert.CertificatePEM,
 						ClientKeyData:         clientCert.PrivateKeyPEM,
@@ -703,6 +719,7 @@ var _ = Describe("GetClientCertificate", func() {
 		Context("accepting arguments only - support for kubectl versions < 1.20.0", func() {
 			BeforeEach(func() {
 				Expect(os.Unsetenv("KUBERNETES_EXEC_INFO")).To(Succeed())
+
 				storeKey.ShootServer = ""
 			})
 
@@ -711,6 +728,7 @@ var _ = Describe("GetClientCertificate", func() {
 				f.restClient = nil
 
 				By("Ensure valid certificate is found in certificate cache")
+
 				cachedCertificateSet := certificatecache.CertificateSet{
 					ClientCertificateData: clientCert.CertificatePEM,
 					ClientKeyData:         clientCert.PrivateKeyPEM,
@@ -724,6 +742,7 @@ var _ = Describe("GetClientCertificate", func() {
 				}
 
 				By("executing the command")
+
 				args := []string{
 					"--garden-cluster-identity=landscape-dev",
 					"--name=mycluster",
@@ -745,9 +764,11 @@ var _ = Describe("GetClientCertificate", func() {
 
 			It("Should fetch the client certificate", func() {
 				By("By using fake RESTClient")
+
 				f.restClient = restClient
 
 				By("executing the command")
+
 				args := []string{
 					"--garden-cluster-identity=landscape-dev",
 					"--name=mycluster",
@@ -768,6 +789,7 @@ var _ = Describe("GetClientCertificate", func() {
 				Expect(errOut.String()).To(BeEmpty())
 
 				By("Expecting certificate to be stored in cache")
+
 				wantCertificateSet := certificatecache.CertificateSet{
 					ClientCertificateData: clientCert.CertificatePEM,
 					ClientKeyData:         clientCert.PrivateKeyPEM,
