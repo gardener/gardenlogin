@@ -15,13 +15,16 @@ For more information on how the plugin operates, refer to the [Authentication Fl
 
 ## Installation
 
-Install the latest release from [Homebrew](https://brew.sh/), [Chocolatey](https://chocolatey.org/packages/gardenlogin) or [GitHub Releases](https://github.com/gardener/gardenlogin/releases).
+Install the latest release from [Homebrew](https://brew.sh/), [winget](https://learn.microsoft.com/en-us/windows/package-manager/winget/), [Chocolatey](https://chocolatey.org/packages/gardenlogin) or [GitHub Releases](https://github.com/gardener/gardenlogin/releases).
 
 ### Install using Package Managers
 
 ```sh
 # Homebrew (macOS and Linux)
 brew install gardener/tap/gardenlogin
+
+# winget (Windows)
+winget install -e --id Gardener.gardenlogin
 
 # Chocolatey (Windows)
 choco install gardenlogin
