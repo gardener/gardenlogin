@@ -3,8 +3,8 @@ module github.com/gardener/gardenlogin
 go 1.26.2
 
 require (
-	github.com/gardener/gardener v1.142.0
-	github.com/gardener/gardener/pkg/apis v1.142.0
+	github.com/gardener/gardener v1.142.1
+	github.com/gardener/gardener/pkg/apis v1.142.1
 	github.com/iancoleman/strcase v0.3.0
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/onsi/ginkgo/v2 v2.28.1
