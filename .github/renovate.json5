@@ -49,7 +49,7 @@
       rangeStrategy: 'bump',
     },
     {
-      groupName: 'Update tools',
+      groupName: 'tools',
       matchFileNames: [
         'hack/tools\\.mk',
       ],
