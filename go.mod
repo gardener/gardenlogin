@@ -1,6 +1,6 @@
 module github.com/gardener/gardenlogin
 
-go 1.26.3
+go 1.26.4
 
 require (
 	github.com/gardener/gardener v1.144.0
