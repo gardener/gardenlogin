@@ -3,8 +3,8 @@ module github.com/gardener/gardenlogin
 go 1.26.5
 
 require (
-	github.com/gardener/gardener v1.145.0
-	github.com/gardener/gardener/pkg/apis v1.145.0
+	github.com/gardener/gardener v1.146.0
+	github.com/gardener/gardener/pkg/apis v1.146.0
 	github.com/iancoleman/strcase v0.3.0
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/onsi/ginkgo/v2 v2.32.0
@@ -22,7 +22,7 @@ require (
 
 require (
 	github.com/Masterminds/semver/v3 v3.5.0 // indirect
-	github.com/andybalholm/brotli v1.2.1 // indirect
+	github.com/andybalholm/brotli v1.2.2 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
@@ -52,7 +52,7 @@ require (
 	github.com/go-openapi/swag/typeutils v0.26.0 // indirect
 	github.com/go-openapi/swag/yamlutils v0.25.5 // indirect
 	github.com/go-task/slim-sprig/v3 v3.0.0 // indirect
-	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
+	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
 	github.com/google/gnostic-models v0.7.1 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/pprof v0.0.0-20260402051712-545e8a4df936 // indirect
@@ -66,12 +66,12 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
-	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
+	github.com/pelletier/go-toml/v2 v2.3.1 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring v0.91.0 // indirect
-	github.com/prometheus/client_golang v1.23.3-0.20260602051030-3537b20ac86b // indirect
+	github.com/prometheus/client_golang v1.23.3-0.20260624042014-28914d017fba // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
-	github.com/prometheus/common v0.68.1 // indirect
+	github.com/prometheus/common v0.69.0 // indirect
 	github.com/prometheus/procfs v0.20.1 // indirect
 	github.com/sagikazarmark/locafero v0.11.0 // indirect
 	github.com/sourcegraph/conc v0.3.1-0.20240121214520-5f936abd7ae8 // indirect
