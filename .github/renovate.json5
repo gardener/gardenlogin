@@ -5,6 +5,7 @@
     ':semanticCommitsDisabled',
     'customManagers:githubActionsVersions',
     'github>gardener/ci-infra//config/renovate/group-gardener-updates.json5',
+    'github>gardener/ci-infra//config/renovate/automerge-with-tide.json5',
   ],
   labels: [
     'kind/enhancement',
@@ -12,6 +13,7 @@
   postUpdateOptions: [
     'gomodTidy',
   ],
+  minimumReleaseAge: '3 days',
   customManagers: [
     {
       customType: 'regex',
@@ -37,8 +39,12 @@
   ],
   packageRules: [
     {
-      matchUpdateTypes: [
-        'patch',
+      matchDatasources: [
+        'go',
+      ],
+      matchPackageNames: [
+        'github.com/gardener/gardener',
+        'github.com/gardener/gardener/pkg/apis',
       ],
       automerge: true,
     },
