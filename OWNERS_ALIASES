@@ -3,9 +3,11 @@
 aliases:
   gardenlogin-reviewers:
   - grolu
+  - chrisstiefel
   - julestree
   - petersutter
   gardenlogin-approvers:
   - grolu
+  - chrisstiefel
   - julestree
   - petersutter
