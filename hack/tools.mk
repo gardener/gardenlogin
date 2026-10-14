@@ -8,10 +8,13 @@ SYSTEM_NAME                := $(shell uname -s | tr '[:upper:]' '[:lower:]')
 SYSTEM_ARCH                := $(shell uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
 TOOLS_BIN_DIR              := $(TOOLS_DIR)/bin/$(SYSTEM_NAME)-$(SYSTEM_ARCH)
 GOSEC                      := $(TOOLS_BIN_DIR)/gosec
+GOLANGCI_LINT              := $(TOOLS_BIN_DIR)/golangci-lint
 
 # default tool versions
 # renovate: datasource=github-releases depName=securego/gosec
 GOSEC_VERSION ?= v2.28.0
+# renovate: datasource=github-releases depName=golangci/golangci-lint
+GOLANGCI_LINT_VERSION ?= v2.12.2
 
 export TOOLS_BIN_DIR := $(TOOLS_BIN_DIR)
 export PATH := $(abspath $(TOOLS_BIN_DIR)):$(PATH)
@@ -43,7 +46,7 @@ clean-tools-bin:
 	rm -rf $(TOOLS_BIN_DIR)/*
 
 .PHONY: create-tools-bin
-create-tools-bin: $(GOSEC)
+create-tools-bin: $(GOSEC) $(GOLANGCI_LINT)
 
 
 #########################################
@@ -51,5 +54,9 @@ create-tools-bin: $(GOSEC)
 #########################################
 
 $(GOSEC): $(call tool_version_file,$(GOSEC),$(GOSEC_VERSION))
-	@GOSEC_VERSION=$(GOSEC_VERSION) $(TOOLS_PKG_PATH)/install-gosec.sh
+	@GOBIN=$(abspath $(TOOLS_BIN_DIR)) go install github.com/securego/gosec/v2/cmd/gosec@$(GOSEC_VERSION)
+
+$(GOLANGCI_LINT): $(call tool_version_file,$(GOLANGCI_LINT),$(GOLANGCI_LINT_VERSION))
+	@GOBIN=$(abspath $(TOOLS_BIN_DIR)) go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
+
 
