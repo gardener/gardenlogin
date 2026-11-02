@@ -3,7 +3,7 @@ module github.com/gardener/gardenlogin
 go 1.27.3
 
 require (
-	github.com/gardener/gardener v1.154.0
+	github.com/gardener/gardener v1.154.1
 	github.com/gardener/gardener/pkg/apis v1.154.1
 	github.com/iancoleman/strcase v0.3.0
 	github.com/mitchellh/go-homedir v1.1.0
@@ -34,8 +34,8 @@ require (
 	github.com/fsnotify/fsnotify v1.10.1 // indirect
 	github.com/fxamacker/cbor/v2 v2.9.4 // indirect
 	github.com/gardener/cert-management v0.23.0 // indirect
-	github.com/gardener/etcd-druid/api v0.39.0 // indirect
-	github.com/gardener/machine-controller-manager v0.63.0 // indirect
+	github.com/gardener/etcd-druid/api v0.39.1 // indirect
+	github.com/gardener/machine-controller-manager v0.63.1 // indirect
 	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-openapi/jsonpointer v1.0.0 // indirect
 	github.com/go-openapi/jsonreference v1.0.0 // indirect
