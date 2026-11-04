@@ -236,12 +236,13 @@ var _ = Describe("GetClientCertificate", func() {
 					It("should not report an error", AssertSuccess())
 				})
 
-				Describe("when cluster server is a valid http URL", func() {
+				Describe("when cluster server is an http URL", func() {
 					BeforeEach(func() {
 						o.ShootCluster.Server = "http://api.mycluster.myproject.foo"
 						gotErr = o.Validate()
+						wantErrStr = "server URL scheme must be https, got \"http\""
 					})
-					It("should not report an error", AssertSuccess())
+					It("should report an error", AssertError())
 				})
 
 				Describe("when cluster is not set", func() {
@@ -277,7 +278,7 @@ var _ = Describe("GetClientCertificate", func() {
 					BeforeEach(func() {
 						o.ShootCluster.Server = "ftp://example.com"
 						gotErr = o.Validate()
-						wantErrStr = "server URL scheme must be http or https, got \"ftp\""
+						wantErrStr = "server URL scheme must be https, got \"ftp\""
 					})
 					It("should report an error", AssertError())
 				})
@@ -701,6 +702,17 @@ var _ = Describe("GetClientCertificate", func() {
 		Context("KUBERNETES_EXEC_INFO is unset", func() {
 			BeforeEach(func() {
 				Expect(os.Unsetenv("KUBERNETES_EXEC_INFO")).To(Succeed())
+
+				storeKey.ShootServer = ""
+				f.store.inMemory[storeKey] = struct {
+					certificateSet *certificatecache.CertificateSet
+					err            error
+				}{
+					certificateSet: &certificatecache.CertificateSet{
+						ClientCertificateData: clientCert.CertificatePEM,
+						ClientKeyData:         clientCert.PrivateKeyPEM,
+					},
+				}
 			})
 
 			It("should reject missing exec info before cache lookup", func() {
