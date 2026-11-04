@@ -151,20 +151,6 @@ var _ = Describe("GetClientCertificate", func() {
 			})
 			It("should not report an error on invalid options", AssertSuccess())
 
-			Context("KUBERNETES_EXEC_INFO is unset", func() {
-				BeforeEach(func() {
-					Expect(os.Unsetenv("KUBERNETES_EXEC_INFO")).To(Succeed())
-				})
-
-				Describe("when cluster is not set", func() {
-					BeforeEach(func() {
-						o.ShootCluster = nil
-						gotErr = o.Validate()
-					})
-					It("should not report an error", AssertSuccess())
-				})
-			})
-
 			Describe("when access level is set to viewer", func() {
 				BeforeEach(func() {
 					o.AccessLevel = "viewer"
@@ -242,11 +228,7 @@ var _ = Describe("GetClientCertificate", func() {
 				It("should report an error", AssertError())
 			})
 
-			Context("KUBERNETES_EXEC_INFO is set", func() {
-				BeforeEach(func() {
-					Expect(os.Setenv("KUBERNETES_EXEC_INFO", "dummy")).To(Succeed())
-				})
-
+			Context("cluster validation", func() {
 				Describe("when cluster server is a valid https URL", func() {
 					BeforeEach(func() {
 						gotErr = o.Validate()
@@ -716,91 +698,23 @@ var _ = Describe("GetClientCertificate", func() {
 			)
 		})
 
-		Context("accepting arguments only - support for kubectl versions < 1.20.0", func() {
+		Context("KUBERNETES_EXEC_INFO is unset", func() {
 			BeforeEach(func() {
 				Expect(os.Unsetenv("KUBERNETES_EXEC_INFO")).To(Succeed())
-
-				storeKey.ShootServer = ""
 			})
 
-			It("Should return cached client certificate", func() {
-				// a rest client is not needed for this test
-				f.restClient = nil
-
-				By("Ensure valid certificate is found in certificate cache")
-
-				cachedCertificateSet := certificatecache.CertificateSet{
-					ClientCertificateData: clientCert.CertificatePEM,
-					ClientKeyData:         clientCert.PrivateKeyPEM,
-				}
-				f.store.inMemory[storeKey] = struct {
-					certificateSet *certificatecache.CertificateSet
-					err            error
-				}{
-					certificateSet: &cachedCertificateSet,
-					err:            nil,
-				}
-
-				By("executing the command")
-
+			It("should reject missing exec info before cache lookup", func() {
 				args := []string{
 					"--garden-cluster-identity=landscape-dev",
 					"--name=mycluster",
 					"--namespace=garden-myproject",
 				}
 				Expect(cmd.ParseFlags(args)).To(Succeed())
-				Expect(cmd.Execute()).To(Succeed())
 
-				By("Expecting cached certificate to be printed to out buffer")
-				Expect(out.String()).To(Equal(fmt.Sprintf(
-					`{"kind":"ExecCredential","apiVersion":"client.authentication.k8s.io/v1beta1","spec":{"interactive":false},"status":{"expirationTimestamp":%q,"clientCertificateData":%q,"clientKeyData":%q}}
-`,
-					expirationTime.Format(time.RFC3339),
-					string(clientCert.CertificatePEM),
-					string(clientCert.PrivateKeyPEM),
-				)))
-				Expect(errOut.String()).To(BeEmpty())
-			})
-
-			It("Should fetch the client certificate", func() {
-				By("By using fake RESTClient")
-
-				f.restClient = restClient
-
-				By("executing the command")
-
-				args := []string{
-					"--garden-cluster-identity=landscape-dev",
-					"--name=mycluster",
-					"--namespace=garden-myproject",
-					"--expiration-seconds=42",
-				}
-				Expect(cmd.ParseFlags(args)).To(Succeed())
-				Expect(cmd.Execute()).To(Succeed())
-
-				By("Expecting certificate to be printed to out buffer")
-				Expect(out.String()).To(Equal(fmt.Sprintf(
-					`{"kind":"ExecCredential","apiVersion":"client.authentication.k8s.io/v1beta1","spec":{"interactive":false},"status":{"expirationTimestamp":%q,"clientCertificateData":%q,"clientKeyData":%q}}
-`,
-					expirationTime.Format(time.RFC3339),
-					string(clientCert.CertificatePEM),
-					string(clientCert.PrivateKeyPEM),
-				)))
-				Expect(errOut.String()).To(BeEmpty())
-
-				By("Expecting certificate to be stored in cache")
-
-				wantCertificateSet := certificatecache.CertificateSet{
-					ClientCertificateData: clientCert.CertificatePEM,
-					ClientKeyData:         clientCert.PrivateKeyPEM,
-				}
-				Expect(f.store.inMemory[storeKey]).To(Equal(struct {
-					certificateSet *certificatecache.CertificateSet
-					err            error
-				}{
-					certificateSet: &wantCertificateSet,
-					err:            nil,
-				}))
+				err := cmd.Execute()
+				Expect(err).To(MatchError("failed to complete command options: KUBERNETES_EXEC_INFO env var is unset or empty"))
+				Expect(out.String()).To(BeEmpty())
+				Expect(f.store.findByKeyCalls).To(BeZero())
 			})
 		})
 	})
@@ -1005,7 +919,8 @@ func newFakeStore() *fakeStore {
 
 // fakeStore implements store.Interface interface.
 type fakeStore struct {
-	inMemory map[certificatecache.Key]struct {
+	findByKeyCalls int
+	inMemory       map[certificatecache.Key]struct {
 		certificateSet *certificatecache.CertificateSet
 		err            error
 	}
@@ -1014,6 +929,8 @@ type fakeStore struct {
 var _ store.Interface = &fakeStore{}
 
 func (s *fakeStore) FindByKey(key certificatecache.Key) (*certificatecache.CertificateSet, error) {
+	s.findByKeyCalls++
+
 	res, ok := s.inMemory[key]
 	if !ok {
 		return nil, errors.New("item not found")

@@ -32,7 +32,6 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
 	clientauthenticationv1 "k8s.io/client-go/pkg/apis/clientauthentication/v1"
-	clientauthenticationv1beta1 "k8s.io/client-go/pkg/apis/clientauthentication/v1beta1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/auth/exec"
 	"k8s.io/client-go/tools/clientcmd"
@@ -102,11 +101,7 @@ type GetClientCertificateOptions struct {
 	// Common user flags
 
 	// ShootCluster holds the data of the shoot kubernetes cluster.
-	// This field is not set for kubectl versions older than v1.20.0 and starting with v1.11.0 as the KUBERNETES_EXEC_INFO environment variable is not set
-	// If not nil, the Server and CertificateAuthorityData must match with what is returned in the kubeconfig of the "shoots/adminkubeconfig" subresource.
-	// If nil the cluster of the current context from the kubeconfig returned by the "shoots/adminkubeconfig" subresource is used.
-	// TODO once we drop support for kubectl versions older than v1.20.0, this field should be made required
-	// +optional
+	// The Server and CertificateAuthorityData must match what is returned in the kubeconfig of the "shoots/adminkubeconfig" subresource.
 	ShootCluster *clientauthenticationv1.Cluster
 	// ShootRef references the shoot cluster for which the client certificate credentials should be obtained
 	ShootRef ShootRef
@@ -200,54 +195,46 @@ func NewCmdGetClientCertificate(f util.Factory, ioStreams util.IOStreams) *cobra
 
 // Complete adapts from the command line args to the data required.
 func (o *GetClientCertificateOptions) Complete(f util.Factory, _ *cobra.Command, _ []string) error {
-	env := os.Getenv(execInfoEnv)
-	if env != "" { // KUBERNETES_EXEC_INFO env variable set for kubectl versions starting with v1.20.0
-		obj, _, err := exec.LoadExecCredential([]byte(env))
-		if err != nil {
+	obj, _, err := exec.LoadExecCredentialFromEnv()
+	if err != nil {
+		return err
+	}
+
+	o.GroupVersion = obj.GetObjectKind().GroupVersionKind().GroupVersion()
+
+	obj, err = scheme.Scheme.ConvertToVersion(obj, clientauthenticationv1.SchemeGroupVersion)
+	if err != nil {
+		return fmt.Errorf("cannot convert to %s: %w", clientauthenticationv1.SchemeGroupVersion, err)
+	}
+
+	v1ExecCredential, ok := obj.(*clientauthenticationv1.ExecCredential)
+	if !ok {
+		return errors.New("obj is not of type clientauthenticationv1.ExecCredential")
+	}
+
+	var extension ExecPluginConfig
+
+	if v1ExecCredential.Spec.Cluster.Config.Raw != nil {
+		if err := json.Unmarshal(v1ExecCredential.Spec.Cluster.Config.Raw, &extension); err != nil {
 			return err
 		}
+	}
 
-		o.GroupVersion = obj.GetObjectKind().GroupVersionKind().GroupVersion()
+	o.ShootCluster = v1ExecCredential.Spec.Cluster
 
-		obj, err = scheme.Scheme.ConvertToVersion(obj, clientauthenticationv1.SchemeGroupVersion)
-		if err != nil {
-			return fmt.Errorf("cannot convert to %s: %w", clientauthenticationv1.SchemeGroupVersion, err)
-		}
+	if o.GardenClusterIdentity == "" {
+		o.GardenClusterIdentity = extension.GardenClusterIdentity
+	}
 
-		v1ExecCredential, ok := obj.(*clientauthenticationv1.ExecCredential)
-		if !ok {
-			return errors.New("obj is not of type clientauthenticationv1.ExecCredential")
-		}
+	if o.ShootRef.Name == "" {
+		o.ShootRef.Name = extension.ShootRef.Name
+	}
 
-		var extension ExecPluginConfig
-
-		if v1ExecCredential.Spec.Cluster.Config.Raw != nil {
-			if err := json.Unmarshal(v1ExecCredential.Spec.Cluster.Config.Raw, &extension); err != nil {
-				return err
-			}
-		}
-
-		o.ShootCluster = v1ExecCredential.Spec.Cluster
-
-		if o.GardenClusterIdentity == "" {
-			o.GardenClusterIdentity = extension.GardenClusterIdentity
-		}
-
-		if o.ShootRef.Name == "" {
-			o.ShootRef.Name = extension.ShootRef.Name
-		}
-
-		if o.ShootRef.Namespace == "" {
-			o.ShootRef.Namespace = extension.ShootRef.Namespace
-		}
-	} else {
-		// fallback to v1beta1 for kubectl versions < v1.20.0
-		o.GroupVersion = clientauthenticationv1beta1.SchemeGroupVersion
+	if o.ShootRef.Namespace == "" {
+		o.ShootRef.Namespace = extension.ShootRef.Namespace
 	}
 
 	o.CertificateCacheStore = f.CertificateStore(o.CertificateCacheDir)
-
-	var err error
 
 	if o.GardenClusterIdentity != "" {
 		o.GardenCoreV1Beta1RESTClient, err = f.RESTClient(o.GardenClusterIdentity)
@@ -267,14 +254,12 @@ func (o *GetClientCertificateOptions) Complete(f util.Factory, _ *cobra.Command,
 
 // Validate makes sure provided values for GetClientCertificateOptions are valid.
 func (o *GetClientCertificateOptions) Validate() error {
-	if os.Getenv(execInfoEnv) != "" {
-		if o.ShootCluster == nil {
-			return errors.New("cluster must be specified")
-		}
+	if o.ShootCluster == nil {
+		return errors.New("cluster must be specified")
+	}
 
-		if err := validateServer(o.ShootCluster.Server); err != nil {
-			return err
-		}
+	if err := validateServer(o.ShootCluster.Server); err != nil {
+		return err
 	}
 
 	if len(o.ShootRef.Name) == 0 {
@@ -325,14 +310,8 @@ func validateServer(server string) error {
 func (o *GetClientCertificateOptions) RunGetClientCertificate(ctx context.Context) error {
 	logger := klog.FromContext(ctx)
 
-	// server is empty for kubectl versions older than v1.20.0 as the KUBERNETES_EXEC_INFO environment variable is not set
-	server := ""
-	if o.ShootCluster != nil {
-		server = o.ShootCluster.Server
-	}
-
 	certificateCacheKey := certificatecache.Key{
-		ShootServer:           server,
+		ShootServer:           o.ShootCluster.Server,
 		ShootName:             o.ShootRef.Name,
 		ShootNamespace:        o.ShootRef.Namespace,
 		GardenClusterIdentity: o.GardenClusterIdentity,
@@ -599,16 +578,6 @@ func authInfoFromKubeconfigForCluster(kubeconfig []byte, cluster *clientauthenti
 }
 
 func clusterNameFromConfigForCluster(config api.Config, cluster *clientauthenticationv1.Cluster) (string, error) {
-	if cluster == nil {
-		// fallback to cluster from current context (to support kubectl versions older v1.20.0)
-		context := config.Contexts[config.CurrentContext]
-		if context == nil {
-			return "", fmt.Errorf("no context found for current context %s", config.CurrentContext)
-		}
-
-		return context.Cluster, nil
-	}
-
 	for name, c := range config.Clusters {
 		if cluster.Server == c.Server {
 			return name, nil
