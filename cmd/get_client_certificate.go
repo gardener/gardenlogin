@@ -261,6 +261,9 @@ func (o *GetClientCertificateOptions) Validate() error {
 	if err := validateServer(o.ShootCluster.Server); err != nil {
 		return err
 	}
+	if o.ShootCluster.InsecureSkipTLSVerify {
+		return errors.New("skipping TLS verify is not allowed")
+	}
 
 	if len(o.ShootRef.Name) == 0 {
 		return errors.New("name must be specified. Hint: update kubectl in case you are using a version older than v1.20.0")
@@ -299,8 +302,8 @@ func validateServer(server string) error {
 		return fmt.Errorf("server must be a valid URL: %w", err)
 	}
 
-	if u.Scheme != "http" && u.Scheme != "https" {
-		return fmt.Errorf("server URL scheme must be http or https, got %q", u.Scheme)
+	if u.Scheme != "https" {
+		return fmt.Errorf("server URL scheme must be https, got %q", u.Scheme)
 	}
 
 	return nil
