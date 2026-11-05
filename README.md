@@ -119,7 +119,26 @@ users:
       - get-client-certificate
 ```
 
-An example `kubeconfig` supporting `kubectl` version `v1.11.0` onwards can be found under [example/01-kubeconfig-legacy.yaml](example/01-kubeconfig-legacy.yaml).
+An example legacy `kubeconfig` for older kubectl versions can be found under [example/01-kubeconfig-legacy.yaml](example/01-kubeconfig-legacy.yaml). It only works with the insecure debug build described below.
+
+### Insecure Argument-Only Debug Mode
+
+By default, gardenlogin requires kubectl to provide its effective cluster
+configuration through `KUBERNETES_EXEC_INFO`. Versions of `kubectl` older than 1.20 do not provide this env variable. 
+When `KUBERNETES_EXEC_INFO` is absent, gardenlogin relies only on the
+Shoot and Garden references passed as command arguments.
+
+For temporary debugging, a local binary can be built with the argument-only fallback enabled:
+
+```sh
+make build insecureAllowArgumentOnly=true
+```
+
+This mode is disabled by default and must not be used for release or distributed
+binaries, as it does not verify the certificate authorities trusted by kubectl. It also cannot
+verify kubectl's effective server, TLS server name, proxy, or other transport
+settings before issuing or returning a cached credential.
+
 
 ## Authentication Flow
 The following describes the flow to authenticate against a `Shoot` cluster as cluster admin:

@@ -12,7 +12,9 @@ else
 GOBIN=$(shell go env GOBIN)
 endif
 
-export LD_FLAGS=$(shell ./hack/get-build-ld-flags.sh)
+# Debug only: enables the insecure argument-only credential path.
+insecureAllowArgumentOnly ?= false
+export insecureAllowArgumentOnly
 
 #########################################
 # Tools                                 #

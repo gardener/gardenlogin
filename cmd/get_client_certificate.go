@@ -32,6 +32,7 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
 	clientauthenticationv1 "k8s.io/client-go/pkg/apis/clientauthentication/v1"
+	clientauthenticationv1beta1 "k8s.io/client-go/pkg/apis/clientauthentication/v1beta1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/auth/exec"
 	"k8s.io/client-go/tools/clientcmd"
@@ -51,6 +52,15 @@ const (
 	accessLevelAdmin  = "admin"
 	accessLevelViewer = "viewer"
 )
+
+// insecureAllowArgumentOnly can be set to "true" at build time for debugging with:
+// -ldflags "-X github.com/gardener/gardenlogin/cmd.insecureAllowArgumentOnly=true"
+// This mode cannot verify kubectl's effective server, CA, proxy, or TLS settings.
+var insecureAllowArgumentOnly = "false"
+
+func isInsecureArgumentOnlyAllowed() bool {
+	return insecureAllowArgumentOnly == "true"
+}
 
 var (
 	ioStreams = util.IOStreams{
@@ -197,41 +207,46 @@ func NewCmdGetClientCertificate(f util.Factory, ioStreams util.IOStreams) *cobra
 func (o *GetClientCertificateOptions) Complete(f util.Factory, _ *cobra.Command, _ []string) error {
 	obj, _, err := exec.LoadExecCredentialFromEnv()
 	if err != nil {
-		return err
-	}
-
-	o.GroupVersion = obj.GetObjectKind().GroupVersionKind().GroupVersion()
-
-	obj, err = scheme.Scheme.ConvertToVersion(obj, clientauthenticationv1.SchemeGroupVersion)
-	if err != nil {
-		return fmt.Errorf("cannot convert to %s: %w", clientauthenticationv1.SchemeGroupVersion, err)
-	}
-
-	v1ExecCredential, ok := obj.(*clientauthenticationv1.ExecCredential)
-	if !ok {
-		return errors.New("obj is not of type clientauthenticationv1.ExecCredential")
-	}
-
-	var extension ExecPluginConfig
-
-	if v1ExecCredential.Spec.Cluster.Config.Raw != nil {
-		if err := json.Unmarshal(v1ExecCredential.Spec.Cluster.Config.Raw, &extension); err != nil {
+		if !isInsecureArgumentOnlyAllowed() || os.Getenv(execInfoEnv) != "" {
 			return err
 		}
-	}
 
-	o.ShootCluster = v1ExecCredential.Spec.Cluster
+		fmt.Fprintln(o.IOStreams.ErrOut, "WARNING: insecure argument-only mode is enabled; the server, certificate authorities, proxy, and TLS settings used by kubectl are not verified")
+		o.GroupVersion = clientauthenticationv1beta1.SchemeGroupVersion
+	} else {
+		o.GroupVersion = obj.GetObjectKind().GroupVersionKind().GroupVersion()
 
-	if o.GardenClusterIdentity == "" {
-		o.GardenClusterIdentity = extension.GardenClusterIdentity
-	}
+		obj, err = scheme.Scheme.ConvertToVersion(obj, clientauthenticationv1.SchemeGroupVersion)
+		if err != nil {
+			return fmt.Errorf("cannot convert to %s: %w", clientauthenticationv1.SchemeGroupVersion, err)
+		}
 
-	if o.ShootRef.Name == "" {
-		o.ShootRef.Name = extension.ShootRef.Name
-	}
+		v1ExecCredential, ok := obj.(*clientauthenticationv1.ExecCredential)
+		if !ok {
+			return errors.New("obj is not of type clientauthenticationv1.ExecCredential")
+		}
 
-	if o.ShootRef.Namespace == "" {
-		o.ShootRef.Namespace = extension.ShootRef.Namespace
+		var extension ExecPluginConfig
+
+		if v1ExecCredential.Spec.Cluster.Config.Raw != nil {
+			if err := json.Unmarshal(v1ExecCredential.Spec.Cluster.Config.Raw, &extension); err != nil {
+				return err
+			}
+		}
+
+		o.ShootCluster = v1ExecCredential.Spec.Cluster
+
+		if o.GardenClusterIdentity == "" {
+			o.GardenClusterIdentity = extension.GardenClusterIdentity
+		}
+
+		if o.ShootRef.Name == "" {
+			o.ShootRef.Name = extension.ShootRef.Name
+		}
+
+		if o.ShootRef.Namespace == "" {
+			o.ShootRef.Namespace = extension.ShootRef.Namespace
+		}
 	}
 
 	o.CertificateCacheStore = f.CertificateStore(o.CertificateCacheDir)
@@ -255,14 +270,17 @@ func (o *GetClientCertificateOptions) Complete(f util.Factory, _ *cobra.Command,
 // Validate makes sure provided values for GetClientCertificateOptions are valid.
 func (o *GetClientCertificateOptions) Validate() error {
 	if o.ShootCluster == nil {
-		return errors.New("cluster must be specified")
-	}
+		if !isInsecureArgumentOnlyAllowed() {
+			return errors.New("cluster must be specified")
+		}
+	} else {
+		if err := validateServer(o.ShootCluster.Server); err != nil {
+			return err
+		}
 
-	if err := validateServer(o.ShootCluster.Server); err != nil {
-		return err
-	}
-	if o.ShootCluster.InsecureSkipTLSVerify {
-		return errors.New("skipping TLS verify is not allowed")
+		if o.ShootCluster.InsecureSkipTLSVerify {
+			return errors.New("skipping TLS verify is not allowed")
+		}
 	}
 
 	if len(o.ShootRef.Name) == 0 {
@@ -313,8 +331,13 @@ func validateServer(server string) error {
 func (o *GetClientCertificateOptions) RunGetClientCertificate(ctx context.Context) error {
 	logger := klog.FromContext(ctx)
 
+	server := ""
+	if o.ShootCluster != nil {
+		server = o.ShootCluster.Server
+	}
+
 	certificateCacheKey := certificatecache.Key{
-		ShootServer:           o.ShootCluster.Server,
+		ShootServer:           server,
 		ShootName:             o.ShootRef.Name,
 		ShootNamespace:        o.ShootRef.Namespace,
 		GardenClusterIdentity: o.GardenClusterIdentity,
@@ -581,6 +604,15 @@ func authInfoFromKubeconfigForCluster(kubeconfig []byte, cluster *clientauthenti
 }
 
 func clusterNameFromConfigForCluster(config api.Config, cluster *clientauthenticationv1.Cluster) (string, error) {
+	if cluster == nil {
+		context := config.Contexts[config.CurrentContext]
+		if context == nil {
+			return "", fmt.Errorf("no context found for current context %s", config.CurrentContext)
+		}
+
+		return context.Cluster, nil
+	}
+
 	for name, c := range config.Clusters {
 		if cluster.Server == c.Server {
 			return name, nil
