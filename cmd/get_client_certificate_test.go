@@ -251,7 +251,14 @@ var _ = Describe("GetClientCertificate", func() {
 						gotErr = o.Validate()
 						wantErrStr = "cluster must be specified"
 					})
-					It("should report an error", AssertError())
+
+					Context("with argument-only disabled (default)", Label("argument-only-disabled"), func() {
+						It("should report an error", AssertError())
+					})
+
+					Context("with argument-only enabled", Label("argument-only-enabled"), func() {
+						It("should not report an error", AssertSuccess())
+					})
 				})
 
 				Describe("when cluster server is not set", func() {
@@ -715,18 +722,37 @@ var _ = Describe("GetClientCertificate", func() {
 				}
 			})
 
-			It("should reject missing exec info before cache lookup", func() {
-				args := []string{
-					"--garden-cluster-identity=landscape-dev",
-					"--name=mycluster",
-					"--namespace=garden-myproject",
-				}
-				Expect(cmd.ParseFlags(args)).To(Succeed())
+			Context("with argument-only disabled (default)", Label("argument-only-disabled"), func() {
+				It("should reject missing exec info before cache lookup", func() {
+					args := []string{
+						"--garden-cluster-identity=landscape-dev",
+						"--name=mycluster",
+						"--namespace=garden-myproject",
+					}
+					Expect(cmd.ParseFlags(args)).To(Succeed())
 
-				err := cmd.Execute()
-				Expect(err).To(MatchError("failed to complete command options: KUBERNETES_EXEC_INFO env var is unset or empty"))
-				Expect(out.String()).To(BeEmpty())
-				Expect(f.store.findByKeyCalls).To(BeZero())
+					err := cmd.Execute()
+					Expect(err).To(MatchError("failed to complete command options: KUBERNETES_EXEC_INFO env var is unset or empty"))
+					Expect(out.String()).To(BeEmpty())
+					Expect(f.store.findByKeyCalls).To(BeZero())
+				})
+			})
+
+			Context("with argument-only enabled", Label("argument-only-enabled"), func() {
+				It("should return a cached certificate", func() {
+					args := []string{
+						"--garden-cluster-identity=landscape-dev",
+						"--name=mycluster",
+						"--namespace=garden-myproject",
+					}
+					Expect(cmd.ParseFlags(args)).To(Succeed())
+
+					Expect(cmd.Execute()).To(Succeed())
+					Expect(out.String()).ToNot(BeEmpty())
+					Expect(errOut.String()).To(ContainSubstring("WARNING: insecure argument-only mode is enabled"))
+					Expect(errOut.String()).To(ContainSubstring("certificate authorities"))
+					Expect(f.store.findByKeyCalls).To(Equal(1))
+				})
 			})
 		})
 	})

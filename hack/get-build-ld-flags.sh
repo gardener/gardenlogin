@@ -39,3 +39,7 @@ do
         -X $PACKAGE_PATH/version.buildDate=$(date '+%Y-%m-%dT%H:%M:%S%z' | sed 's/\([0-9][0-9]\)$/:\1/g')
         -X $PACKAGE_PATH/version/verflag.programName=$PROGRAM_NAME"
 done
+
+if [[ "${insecureAllowArgumentOnly:-false}" == "true" ]]; then
+  echo "-X github.com/gardener/gardenlogin/cmd.insecureAllowArgumentOnly=true"
+fi
