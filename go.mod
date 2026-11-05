@@ -4,7 +4,7 @@ go 1.27.3
 
 require (
 	github.com/gardener/gardener v1.154.1
-	github.com/gardener/gardener/pkg/apis v1.154.1
+	github.com/gardener/gardener/pkg/apis v1.154.2
 	github.com/iancoleman/strcase v0.3.0
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/onsi/ginkgo/v2 v2.33.0
