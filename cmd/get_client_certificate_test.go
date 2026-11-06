@@ -283,6 +283,33 @@ var _ = Describe("GetClientCertificate", func() {
 					It("should report an error", AssertError())
 				})
 
+				Describe("when cluster server has no host", func() {
+					BeforeEach(func() {
+						o.ShootCluster.Server = "https://"
+						gotErr = o.Validate()
+						wantErrStr = "server URL host must not be empty"
+					})
+					It("should report an error", AssertError())
+				})
+
+				Describe("when proxy URL is specified", func() {
+					BeforeEach(func() {
+						o.ShootCluster.ProxyURL = "http://proxy.example.com"
+						gotErr = o.Validate()
+						wantErrStr = "proxy URL is not allowed"
+					})
+					It("should report an error", AssertError())
+				})
+
+				Describe("when TLS server name is specified", func() {
+					BeforeEach(func() {
+						o.ShootCluster.TLSServerName = "custom.example.com"
+						gotErr = o.Validate()
+						wantErrStr = "tls-server-name is not allowed"
+					})
+					It("should report an error", AssertError())
+				})
+
 				Describe("when certificate authority data is empty", func() {
 					BeforeEach(func() {
 						o.ShootCluster.CertificateAuthorityData = []byte{}
