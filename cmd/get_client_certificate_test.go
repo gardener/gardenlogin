@@ -61,8 +61,8 @@ var _ = Describe("GetClientCertificate", func() {
 
 		var err error
 
-		shootCaData, err = base64.StdEncoding.DecodeString("LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCi4uLgotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0t")
-		Expect(err).ToNot(HaveOccurred())
+		shootCA := generateCaCert()
+		shootCaData = shootCA.CertificatePEM
 
 		epc := c.ExecPluginConfig{
 			ShootRef: c.ShootRef{
@@ -520,7 +520,7 @@ var _ = Describe("GetClientCertificate", func() {
 		})
 	})
 
-	Context("Tests expecting success", func() {
+	Context("Command execution", func() {
 		var (
 			caCert     *secrets.Certificate
 			clientCert *secrets.Certificate
@@ -554,7 +554,7 @@ var _ = Describe("GetClientCertificate", func() {
 			caCert = generateCaCert()
 			clientCert = generateClientCert(caCert, validity)
 
-			restClient = fakeKubeconfigRESTClient(expirationTime, nil, clientCert.CertificatePEM, clientCert.PrivateKeyPEM)
+			restClient = fakeKubeconfigRESTClient(expirationTime, nil, shootCaData, clientCert.CertificatePEM, clientCert.PrivateKeyPEM)
 		})
 
 		Context("KUBERNETES_EXEC_INFO is set", func() {
@@ -656,6 +656,57 @@ var _ = Describe("GetClientCertificate", func() {
 				Entry("v1beta1ExecCredential", "v1beta1", &v1beta1ExecCredential),
 			)
 
+			DescribeTable("Should match invoking certificate authorities against the authoritative bundle",
+				func(invokingCAIDs, authoritativeCAIDs []string, shouldSucceed bool) {
+					oldCA := generateCaCert().CertificatePEM
+					newCA := generateCaCert().CertificatePEM
+					unknownCA := generateCaCert().CertificatePEM
+					certificateAuthorities := map[string][]byte{
+						"old":     oldCA,
+						"new":     newCA,
+						"unknown": unknownCA,
+					}
+					bundle := func(ids []string) []byte {
+						var result []byte
+						for _, id := range ids {
+							result = append(result, certificateAuthorities[id]...)
+						}
+						return result
+					}
+
+					v1ExecCredential.Spec.Cluster.CertificateAuthorityData = bundle(invokingCAIDs)
+					execInfo, err := json.Marshal(&v1ExecCredential)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(os.Setenv("KUBERNETES_EXEC_INFO", string(execInfo))).To(Succeed())
+
+					f.restClient = fakeKubeconfigRESTClient(
+						expirationTime,
+						nil,
+						bundle(authoritativeCAIDs),
+						clientCert.CertificatePEM,
+						clientCert.PrivateKeyPEM,
+					)
+
+					Expect(cmd.ParseFlags([]string{"--expiration-seconds=42"})).To(Succeed())
+					err = cmd.Execute()
+					if shouldSucceed {
+						Expect(err).ToNot(HaveOccurred())
+						Expect(out.String()).ToNot(BeEmpty())
+					} else {
+						Expect(err).To(HaveOccurred())
+						Expect(out.String()).To(BeEmpty())
+					}
+				},
+				Entry("accepts the old CA during rotation", []string{"old"}, []string{"old", "new"}, true),
+				Entry("accepts the new CA during rotation", []string{"new"}, []string{"old", "new"}, true),
+				Entry("accepts the complete rotation bundle", []string{"old", "new"}, []string{"old", "new"}, true),
+				Entry("accepts the complete rotation bundle in a different order", []string{"new", "old"}, []string{"old", "new"}, true),
+				Entry("ignores duplicate certificates", []string{"old", "old"}, []string{"old", "new"}, true),
+				Entry("rejects an unknown CA", []string{"unknown"}, []string{"old", "new"}, false),
+				Entry("rejects a bundle containing an additional unknown CA", []string{"old", "unknown"}, []string{"old", "new"}, false),
+				Entry("rejects the old CA after rotation", []string{"old"}, []string{"new"}, false),
+			)
+
 			DescribeTable("Should fetch the client certificate for different access levels",
 				func(accessLevel string, forbiddenPaths []string) {
 					execInfo, err := json.Marshal(&v1ExecCredential)
@@ -664,7 +715,7 @@ var _ = Describe("GetClientCertificate", func() {
 
 					By("By using fake RESTClient")
 
-					f.restClient = fakeKubeconfigRESTClient(expirationTime, forbiddenPaths, clientCert.CertificatePEM, clientCert.PrivateKeyPEM)
+					f.restClient = fakeKubeconfigRESTClient(expirationTime, forbiddenPaths, shootCaData, clientCert.CertificatePEM, clientCert.PrivateKeyPEM)
 
 					By("executing the command")
 					Expect(cmd.ParseFlags([]string{
@@ -758,17 +809,18 @@ var _ = Describe("GetClientCertificate", func() {
 	})
 })
 
-func fakeKubeconfigRESTClient(expirationTime time.Time, forbiddenPaths []string, certPEM, keyPEM []byte) *fake.RESTClient {
+func fakeKubeconfigRESTClient(expirationTime time.Time, forbiddenPaths []string, clusterCAPEM, certPEM, keyPEM []byte) *fake.RESTClient {
 	codecs := serializer.NewCodecFactory(clientgoscheme.Scheme)
 	codec := codecs.LegacyCodec(authenticationv1alpha1.SchemeGroupVersion)
 
 	certB64 := base64.StdEncoding.EncodeToString(certPEM)
 	keyB64 := base64.StdEncoding.EncodeToString(keyPEM)
+	clusterCAB64 := base64.StdEncoding.EncodeToString(clusterCAPEM)
 
 	kubeconfigTemplate := `apiVersion: v1
 clusters:
 - cluster:
-    certificate-authority-data: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCi4uLgotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0t
+    certificate-authority-data: %s
     server: https://api.mycluster.myproject.foo
   name: shoot--myproject--mycluster
 contexts:
@@ -785,7 +837,7 @@ users:
     client-certificate-data: %s
     client-key-data: %s
 `
-	kubeconfig := fmt.Sprintf(kubeconfigTemplate, certB64, keyB64)
+	kubeconfig := fmt.Sprintf(kubeconfigTemplate, clusterCAB64, certB64, keyB64)
 
 	adminKubeconfigResponse := &authenticationv1alpha1.AdminKubeconfigRequest{
 		Status: authenticationv1alpha1.AdminKubeconfigRequestStatus{
