@@ -339,16 +339,26 @@ func (o *GetClientCertificateOptions) RunGetClientCertificate(ctx context.Contex
 	logger := klog.FromContext(ctx)
 
 	server := ""
+	caHash := ""
+
 	if o.ShootCluster != nil {
 		server = o.ShootCluster.Server
+
+		fingerprints, err := parseCertificateFingerprints(o.ShootCluster.CertificateAuthorityData)
+		if err != nil {
+			return fmt.Errorf("failed to parse certificate authority data: %w", err)
+		}
+
+		caHash = hashFingerprints(fingerprints)
 	}
 
 	certificateCacheKey := certificatecache.Key{
-		ShootServer:           server,
-		ShootName:             o.ShootRef.Name,
-		ShootNamespace:        o.ShootRef.Namespace,
-		GardenClusterIdentity: o.GardenClusterIdentity,
-		AccessLevel:           o.AccessLevel,
+		ShootServer:                   server,
+		ShootCertificateAuthorityHash: caHash,
+		ShootName:                     o.ShootRef.Name,
+		ShootNamespace:                o.ShootRef.Namespace,
+		GardenClusterIdentity:         o.GardenClusterIdentity,
+		AccessLevel:                   o.AccessLevel,
 	}
 
 	cachedCertificateSet, err := o.CertificateCacheStore.FindByKey(certificateCacheKey)
