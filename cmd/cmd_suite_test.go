@@ -18,6 +18,7 @@ import (
 	clientauthenticationv1 "k8s.io/client-go/pkg/apis/clientauthentication/v1"
 	clientauthenticationv1beta1 "k8s.io/client-go/pkg/apis/clientauthentication/v1beta1"
 
+	c "github.com/gardener/gardenlogin/cmd"
 	"github.com/gardener/gardenlogin/internal/clientauthentication"
 )
 
@@ -35,5 +36,13 @@ func init() {
 
 func TestCmd(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Cmd Suite")
+	suiteConfig, reporterConfig := GinkgoConfiguration()
+	if suiteConfig.LabelFilter == "" {
+		if c.IsInsecureArgumentOnlyAllowed() {
+			suiteConfig.LabelFilter = "!argument-only-disabled"
+		} else {
+			suiteConfig.LabelFilter = "!argument-only-enabled"
+		}
+	}
+	RunSpecs(t, "Cmd Suite", suiteConfig, reporterConfig)
 }
