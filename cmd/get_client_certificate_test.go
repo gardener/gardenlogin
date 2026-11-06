@@ -111,7 +111,7 @@ var _ = Describe("GetClientCertificate", func() {
 			o = c.GetClientCertificateOptions{
 				ShootCluster: &clientauthenticationv1.Cluster{
 					Server:                   "https://api.mycluster.myproject.foo",
-					CertificateAuthorityData: []byte("foo"),
+					CertificateAuthorityData: shootCaData,
 				},
 				ShootRef: c.ShootRef{
 					Namespace: "foo",
@@ -281,6 +281,50 @@ var _ = Describe("GetClientCertificate", func() {
 						wantErrStr = "server URL scheme must be https, got \"ftp\""
 					})
 					It("should report an error", AssertError())
+				})
+
+				Describe("when certificate authority data is empty", func() {
+					BeforeEach(func() {
+						o.ShootCluster.CertificateAuthorityData = []byte{}
+						gotErr = o.Validate()
+					})
+					It("should report an error", func() {
+						Expect(gotErr).To(HaveOccurred())
+						Expect(gotErr.Error()).To(ContainSubstring("invalid certificate authority data"))
+					})
+				})
+
+				Describe("when certificate authority data is malformed", func() {
+					BeforeEach(func() {
+						o.ShootCluster.CertificateAuthorityData = []byte("not-pem-data")
+						gotErr = o.Validate()
+					})
+					It("should report an error", func() {
+						Expect(gotErr).To(HaveOccurred())
+						Expect(gotErr.Error()).To(ContainSubstring("invalid certificate authority data"))
+					})
+				})
+
+				Describe("when certificate authority data has non-CERTIFICATE block", func() {
+					BeforeEach(func() {
+						o.ShootCluster.CertificateAuthorityData = sharedClientCert.PrivateKeyPEM
+						gotErr = o.Validate()
+					})
+					It("should report an error", func() {
+						Expect(gotErr).To(HaveOccurred())
+						Expect(gotErr.Error()).To(ContainSubstring("invalid certificate authority data"))
+					})
+				})
+
+				Describe("when certificate authority data has trailing garbage", func() {
+					BeforeEach(func() {
+						o.ShootCluster.CertificateAuthorityData = append(shootCaData, []byte("\ntrailing garbage")...)
+						gotErr = o.Validate()
+					})
+					It("should report an error", func() {
+						Expect(gotErr).To(HaveOccurred())
+						Expect(gotErr.Error()).To(ContainSubstring("invalid certificate authority data"))
+					})
 				})
 
 				Describe("when access level is not valid", func() {
