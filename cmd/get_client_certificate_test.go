@@ -413,12 +413,16 @@ var _ = Describe("GetClientCertificate", func() {
 		)
 
 		BeforeEach(func() {
+			caHash, err := c.CertificateAuthorityHash(shootCaData)
+			Expect(err).ToNot(HaveOccurred())
+
 			storeKey = certificatecache.Key{
-				ShootServer:           "https://api.mycluster.myproject.foo",
-				ShootName:             "mycluster",
-				ShootNamespace:        "garden-myproject",
-				GardenClusterIdentity: "landscape-dev",
-				AccessLevel:           "auto",
+				ShootServer:                   "https://api.mycluster.myproject.foo",
+				ShootCertificateAuthorityHash: caHash,
+				ShootName:                     "mycluster",
+				ShootNamespace:                "garden-myproject",
+				GardenClusterIdentity:         "landscape-dev",
+				AccessLevel:                   "auto",
 			}
 
 			f = &TestFactory{
@@ -545,6 +549,38 @@ var _ = Describe("GetClientCertificate", func() {
 			Expect(err.Error()).To(ContainSubstring("invalid cached client key"))
 			Expect(err.Error()).To(ContainSubstring("must contain exactly one PEM block"))
 		})
+
+		It("should not return a cached certificate when invoking with a different certificate authority", func() {
+			By("Storing valid certificate in cache for the default CA")
+
+			cachedCertificateSet := certificatecache.CertificateSet{
+				ClientCertificateData: clientCert.CertificatePEM,
+				ClientKeyData:         clientCert.PrivateKeyPEM,
+			}
+			f.store.inMemory[storeKey] = struct {
+				certificateSet *certificatecache.CertificateSet
+				err            error
+			}{
+				certificateSet: &cachedCertificateSet,
+				err:            nil,
+			}
+
+			By("Invoking with a different CA in KUBERNETES_EXEC_INFO")
+
+			differentCA := generateCaCert().CertificatePEM
+			v1ExecCredential.Spec.Cluster.CertificateAuthorityData = differentCA
+			execInfo, err := json.Marshal(&v1ExecCredential)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(os.Setenv("KUBERNETES_EXEC_INFO", string(execInfo))).To(Succeed())
+
+			f.restClient = fakeKubeconfigRESTClient(expirationTime, nil, shootCaData, clientCert.CertificatePEM, clientCert.PrivateKeyPEM)
+
+			Expect(cmd.ParseFlags([]string{"--expiration-seconds=42"})).To(Succeed())
+			err = cmd.Execute()
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("no matching cluster found for server and certificate authority data"))
+			Expect(f.store.findByKeyCalls).To(Equal(1))
+		})
 	})
 
 	Context("Command execution", func() {
@@ -557,12 +593,16 @@ var _ = Describe("GetClientCertificate", func() {
 		)
 
 		BeforeEach(func() {
+			caHash, err := c.CertificateAuthorityHash(shootCaData)
+			Expect(err).ToNot(HaveOccurred())
+
 			storeKey = certificatecache.Key{
-				ShootServer:           "https://api.mycluster.myproject.foo",
-				ShootName:             "mycluster",
-				ShootNamespace:        "garden-myproject",
-				GardenClusterIdentity: "landscape-dev",
-				AccessLevel:           "auto",
+				ShootServer:                   "https://api.mycluster.myproject.foo",
+				ShootCertificateAuthorityHash: caHash,
+				ShootName:                     "mycluster",
+				ShootNamespace:                "garden-myproject",
+				GardenClusterIdentity:         "landscape-dev",
+				AccessLevel:                   "auto",
 			}
 
 			f = &TestFactory{
@@ -794,6 +834,7 @@ var _ = Describe("GetClientCertificate", func() {
 				Expect(os.Unsetenv("KUBERNETES_EXEC_INFO")).To(Succeed())
 
 				storeKey.ShootServer = ""
+				storeKey.ShootCertificateAuthorityHash = ""
 				f.store.inMemory[storeKey] = struct {
 					certificateSet *certificatecache.CertificateSet
 					err            error
