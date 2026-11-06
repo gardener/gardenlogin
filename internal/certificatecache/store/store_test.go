@@ -34,11 +34,12 @@ var _ = Describe("Store", func() {
 	Describe("FindByKey", func() {
 		It("should succeed", func() {
 			key := certificatecache.Key{
-				ShootServer:           "https://api.example.com",
-				ShootName:             "mycluster",
-				ShootNamespace:        "garden-myproject",
-				GardenClusterIdentity: "landscape-dev",
-				AccessLevel:           "viewer",
+				ShootServer:                   "https://api.example.com",
+				ShootCertificateAuthorityHash: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+				ShootName:                     "mycluster",
+				ShootNamespace:                "garden-myproject",
+				GardenClusterIdentity:         "landscape-dev",
+				AccessLevel:                   "viewer",
 			}
 			json := "{\"clientCertificateData\":\"Zm9v\",\"clientKeyData\":\"YmFy\"}"
 			filename, err := generateFilename(key)
@@ -58,11 +59,12 @@ var _ = Describe("Store", func() {
 	Describe("Save", func() {
 		It("should succeed", func() {
 			key := certificatecache.Key{
-				ShootServer:           "https://api.example.com",
-				ShootName:             "mycluster",
-				ShootNamespace:        "garden-myproject",
-				GardenClusterIdentity: "landscape-dev",
-				AccessLevel:           "viewer",
+				ShootServer:                   "https://api.example.com",
+				ShootCertificateAuthorityHash: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+				ShootName:                     "mycluster",
+				ShootNamespace:                "garden-myproject",
+				GardenClusterIdentity:         "landscape-dev",
+				AccessLevel:                   "viewer",
 			}
 			certificateSet := certificatecache.CertificateSet{ClientCertificateData: []byte("foo"), ClientKeyData: []byte("bar")}
 			Expect(s.Save(key, certificateSet)).To(Succeed())
@@ -77,6 +79,33 @@ var _ = Describe("Store", func() {
 			want := "{\"clientCertificateData\":\"Zm9v\",\"clientKeyData\":\"YmFy\"}\n"
 			got := string(gotBytes)
 			Expect(want).To(Equal(got))
+		})
+
+		It("should generate different filenames for different certificate authority hashes", func() {
+			key1 := certificatecache.Key{
+				ShootServer:                   "https://api.example.com",
+				ShootCertificateAuthorityHash: "hash-ca-1",
+				ShootName:                     "mycluster",
+				ShootNamespace:                "garden-myproject",
+				GardenClusterIdentity:         "landscape-dev",
+				AccessLevel:                   "viewer",
+			}
+			key2 := certificatecache.Key{
+				ShootServer:                   "https://api.example.com",
+				ShootCertificateAuthorityHash: "hash-ca-2",
+				ShootName:                     "mycluster",
+				ShootNamespace:                "garden-myproject",
+				GardenClusterIdentity:         "landscape-dev",
+				AccessLevel:                   "viewer",
+			}
+
+			filename1, err := generateFilename(key1)
+			Expect(err).ToNot(HaveOccurred())
+
+			filename2, err := generateFilename(key2)
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(filename1).ToNot(Equal(filename2))
 		})
 	})
 })

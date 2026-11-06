@@ -10,6 +10,8 @@ package certificatecache
 type Key struct {
 	// ShootServer is the kube-apiserver url of the shoot
 	ShootServer string
+	// ShootCertificateAuthorityHash is the canonical digest of the shoot CA certificate set
+	ShootCertificateAuthorityHash string
 	// ShootName is the name of the shoot in the garden cluster
 	ShootName string
 	// ShootNamespace is the namespace of the shoot in the garden cluster
