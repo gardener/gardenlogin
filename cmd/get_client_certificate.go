@@ -9,7 +9,9 @@ package cmd
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"crypto/x509"
+	"encoding/hex"
 	"encoding/json"
 	"encoding/pem"
 	"errors"
@@ -281,6 +283,10 @@ func (o *GetClientCertificateOptions) Validate() error {
 
 		if o.ShootCluster.InsecureSkipTLSVerify {
 			return errors.New("skipping TLS verify is not allowed")
+		}
+
+		if _, err := parseCertificateFingerprints(o.ShootCluster.CertificateAuthorityData); err != nil {
+			return fmt.Errorf("invalid certificate authority data: %w", err)
 		}
 	}
 
@@ -614,13 +620,27 @@ func clusterNameFromConfigForCluster(config api.Config, cluster *clientauthentic
 		return context.Cluster, nil
 	}
 
+	configuredCAs, err := parseCertificateFingerprints(cluster.CertificateAuthorityData)
+	if err != nil {
+		return "", fmt.Errorf("invalid configured certificate authority data: %w", err)
+	}
+
 	for name, c := range config.Clusters {
-		if cluster.Server == c.Server {
+		if cluster.Server != c.Server {
+			continue
+		}
+
+		authoritativeCAs, err := parseCertificateFingerprints(c.CertificateAuthorityData)
+		if err != nil {
+			return "", fmt.Errorf("invalid authoritative certificate authority data for cluster %q: %w", name, err)
+		}
+
+		if isFingerprintSubset(configuredCAs, authoritativeCAs) {
 			return name, nil
 		}
 	}
 
-	return "", fmt.Errorf("no matching cluster found for server %s", cluster.Server)
+	return "", fmt.Errorf("no matching cluster found for server and certificate authority data")
 }
 
 func userNameFromConfigForClusterName(config api.Config, clusterName string) (string, error) {
@@ -736,4 +756,98 @@ func ValidateClientKey(keyData []byte) error {
 	}
 
 	return errors.New("client key is not a valid private key (tried PKCS#1 and PKCS#8 formats)")
+}
+
+type certificateFingerprint [sha256.Size]byte
+
+func parseCertificateFingerprints(data []byte) (map[certificateFingerprint]struct{}, error) {
+	remaining := bytes.TrimSpace(data)
+	if len(remaining) == 0 {
+		return nil, errors.New("certificate authority data must not be empty")
+	}
+
+	fingerprints := make(map[certificateFingerprint]struct{})
+
+	for len(remaining) > 0 {
+		if !bytes.HasPrefix(remaining, []byte("-----BEGIN CERTIFICATE-----")) {
+			return nil, errors.New("certificate authority data must start with a CERTIFICATE PEM BEGIN line")
+		}
+
+		block, rest := pem.Decode(remaining)
+		if block == nil {
+			return nil, errors.New("failed to decode certificate authority PEM block")
+		}
+
+		if block.Type != "CERTIFICATE" {
+			return nil, fmt.Errorf("unexpected PEM block type %q, expected CERTIFICATE", block.Type)
+		}
+
+		if len(block.Headers) != 0 {
+			return nil, errors.New("certificate authority PEM block must not include headers")
+		}
+
+		certificate, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse certificate authority certificate: %w", err)
+		}
+
+		fingerprints[sha256.Sum256(certificate.Raw)] = struct{}{}
+		remaining = bytes.TrimSpace(rest)
+	}
+
+	if len(fingerprints) == 0 {
+		return nil, errors.New("no valid certificates found in certificate authority data")
+	}
+
+	return fingerprints, nil
+}
+
+func isFingerprintSubset(subset, set map[certificateFingerprint]struct{}) bool {
+	if len(subset) == 0 {
+		return false
+	}
+
+	for fp := range subset {
+		if _, ok := set[fp]; !ok {
+			return false
+		}
+	}
+
+	return true
+}
+
+// hashFingerprints returns the SHA-256 hash of the sorted certificate fingerprints.
+// if there are multiple certificates, their fingerprints are sorted before hashing to ensure a canonical order.
+func hashFingerprints(fingerprints map[certificateFingerprint]struct{}) string {
+	fps := make([]certificateFingerprint, 0, len(fingerprints))
+	for fp := range fingerprints {
+		fps = append(fps, fp)
+	}
+
+	slices.SortFunc(fps, func(a, b certificateFingerprint) int {
+		return bytes.Compare(a[:], b[:])
+	})
+
+	hasher := sha256.New()
+	for _, fp := range fps {
+		hasher.Write(fp[:])
+	}
+
+	return hex.EncodeToString(hasher.Sum(nil))
+}
+
+// CertificateAuthorityHash returns the canonical SHA-256 digest of the CA certificate set.
+func CertificateAuthorityHash(data []byte) (string, error) {
+	fingerprints, err := parseCertificateFingerprints(data)
+	if err != nil {
+		return "", err
+	}
+
+	return hashFingerprints(fingerprints), nil
+}
+
+// ValidateCertificateAuthorityData ensures the CA certificate bundle is valid and contains only CERTIFICATE blocks without headers.
+func ValidateCertificateAuthorityData(data []byte) error {
+	_, err := parseCertificateFingerprints(data)
+	return err
 }
