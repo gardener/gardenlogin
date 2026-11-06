@@ -58,7 +58,8 @@ const (
 // This mode cannot verify kubectl's effective server, CA, proxy, or TLS settings.
 var insecureAllowArgumentOnly = "false"
 
-func isInsecureArgumentOnlyAllowed() bool {
+// IsInsecureArgumentOnlyAllowed returns true if insecure argument-only mode was enabled at build time.
+func IsInsecureArgumentOnlyAllowed() bool {
 	return insecureAllowArgumentOnly == "true"
 }
 
@@ -207,7 +208,7 @@ func NewCmdGetClientCertificate(f util.Factory, ioStreams util.IOStreams) *cobra
 func (o *GetClientCertificateOptions) Complete(f util.Factory, _ *cobra.Command, _ []string) error {
 	obj, _, err := exec.LoadExecCredentialFromEnv()
 	if err != nil {
-		if !isInsecureArgumentOnlyAllowed() || os.Getenv(execInfoEnv) != "" {
+		if !IsInsecureArgumentOnlyAllowed() || os.Getenv(execInfoEnv) != "" {
 			return err
 		}
 
@@ -270,7 +271,7 @@ func (o *GetClientCertificateOptions) Complete(f util.Factory, _ *cobra.Command,
 // Validate makes sure provided values for GetClientCertificateOptions are valid.
 func (o *GetClientCertificateOptions) Validate() error {
 	if o.ShootCluster == nil {
-		if !isInsecureArgumentOnlyAllowed() {
+		if !IsInsecureArgumentOnlyAllowed() {
 			return errors.New("cluster must be specified")
 		}
 	} else {
