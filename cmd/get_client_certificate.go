@@ -285,6 +285,14 @@ func (o *GetClientCertificateOptions) Validate() error {
 			return errors.New("skipping TLS verify is not allowed")
 		}
 
+		if o.ShootCluster.ProxyURL != "" {
+			return errors.New("proxy URL is not allowed")
+		}
+
+		if o.ShootCluster.TLSServerName != "" {
+			return errors.New("tls-server-name is not allowed")
+		}
+
 		if _, err := parseCertificateFingerprints(o.ShootCluster.CertificateAuthorityData); err != nil {
 			return fmt.Errorf("invalid certificate authority data: %w", err)
 		}
@@ -329,6 +337,10 @@ func validateServer(server string) error {
 
 	if u.Scheme != "https" {
 		return fmt.Errorf("server URL scheme must be https, got %q", u.Scheme)
+	}
+
+	if len(u.Host) == 0 {
+		return errors.New("server URL host must not be empty")
 	}
 
 	return nil
