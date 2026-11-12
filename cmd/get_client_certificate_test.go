@@ -19,7 +19,6 @@ import (
 
 	authenticationv1alpha1 "github.com/gardener/gardener/pkg/apis/authentication/v1alpha1"
 	"github.com/gardener/gardener/pkg/utils/secrets"
-	"github.com/gardener/gardener/pkg/utils/test"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/spf13/cobra"
@@ -31,7 +30,6 @@ import (
 	clientauthenticationv1beta1 "k8s.io/client-go/pkg/apis/clientauthentication/v1beta1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/rest/fake"
-	"k8s.io/utils/clock/testing"
 
 	c "github.com/gardener/gardenlogin/cmd"
 	"github.com/gardener/gardenlogin/internal/certificatecache"
@@ -42,7 +40,6 @@ import (
 var _ = Describe("GetClientCertificate", func() {
 	var (
 		expirationTime time.Time
-		validity       time.Duration
 
 		ioStreams util.IOStreams
 		errOut    *util.SafeBytesBuffer
@@ -56,13 +53,9 @@ var _ = Describe("GetClientCertificate", func() {
 	BeforeEach(func() {
 		ioStreams, _, out, errOut = util.NewTestIOStreams()
 
-		validity = 10 * time.Minute
 		expirationTime = fakeNow().Add(10 * time.Minute)
 
-		var err error
-
-		shootCaData, err = base64.StdEncoding.DecodeString("LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCi4uLgotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0t")
-		Expect(err).ToNot(HaveOccurred())
+		shootCaData = sharedCaCert.CertificatePEM
 
 		epc := c.ExecPluginConfig{
 			ShootRef: c.ShootRef{
@@ -118,7 +111,7 @@ var _ = Describe("GetClientCertificate", func() {
 			o = c.GetClientCertificateOptions{
 				ShootCluster: &clientauthenticationv1.Cluster{
 					Server:                   "https://api.mycluster.myproject.foo",
-					CertificateAuthorityData: []byte("foo"),
+					CertificateAuthorityData: shootCaData,
 				},
 				ShootRef: c.ShootRef{
 					Namespace: "foo",
@@ -150,20 +143,6 @@ var _ = Describe("GetClientCertificate", func() {
 				wantErrStr = ""
 			})
 			It("should not report an error on invalid options", AssertSuccess())
-
-			Context("KUBERNETES_EXEC_INFO is unset", func() {
-				BeforeEach(func() {
-					Expect(os.Unsetenv("KUBERNETES_EXEC_INFO")).To(Succeed())
-				})
-
-				Describe("when cluster is not set", func() {
-					BeforeEach(func() {
-						o.ShootCluster = nil
-						gotErr = o.Validate()
-					})
-					It("should not report an error", AssertSuccess())
-				})
-			})
 
 			Describe("when access level is set to viewer", func() {
 				BeforeEach(func() {
@@ -242,11 +221,7 @@ var _ = Describe("GetClientCertificate", func() {
 				It("should report an error", AssertError())
 			})
 
-			Context("KUBERNETES_EXEC_INFO is set", func() {
-				BeforeEach(func() {
-					Expect(os.Setenv("KUBERNETES_EXEC_INFO", "dummy")).To(Succeed())
-				})
-
+			Context("cluster validation", func() {
 				Describe("when cluster server is a valid https URL", func() {
 					BeforeEach(func() {
 						gotErr = o.Validate()
@@ -254,12 +229,13 @@ var _ = Describe("GetClientCertificate", func() {
 					It("should not report an error", AssertSuccess())
 				})
 
-				Describe("when cluster server is a valid http URL", func() {
+				Describe("when cluster server is an http URL", func() {
 					BeforeEach(func() {
 						o.ShootCluster.Server = "http://api.mycluster.myproject.foo"
 						gotErr = o.Validate()
+						wantErrStr = "server URL scheme must be https, got \"http\""
 					})
-					It("should not report an error", AssertSuccess())
+					It("should report an error", AssertError())
 				})
 
 				Describe("when cluster is not set", func() {
@@ -268,7 +244,14 @@ var _ = Describe("GetClientCertificate", func() {
 						gotErr = o.Validate()
 						wantErrStr = "cluster must be specified"
 					})
-					It("should report an error", AssertError())
+
+					Context("with argument-only disabled (default)", Label("argument-only-disabled"), func() {
+						It("should report an error", AssertError())
+					})
+
+					Context("with argument-only enabled", Label("argument-only-enabled"), func() {
+						It("should not report an error", AssertSuccess())
+					})
 				})
 
 				Describe("when cluster server is not set", func() {
@@ -295,9 +278,80 @@ var _ = Describe("GetClientCertificate", func() {
 					BeforeEach(func() {
 						o.ShootCluster.Server = "ftp://example.com"
 						gotErr = o.Validate()
-						wantErrStr = "server URL scheme must be http or https, got \"ftp\""
+						wantErrStr = "server URL scheme must be https, got \"ftp\""
 					})
 					It("should report an error", AssertError())
+				})
+
+				Describe("when cluster server has no host", func() {
+					BeforeEach(func() {
+						o.ShootCluster.Server = "https://"
+						gotErr = o.Validate()
+						wantErrStr = "server URL host must not be empty"
+					})
+					It("should report an error", AssertError())
+				})
+
+				Describe("when proxy URL is specified", func() {
+					BeforeEach(func() {
+						o.ShootCluster.ProxyURL = "http://proxy.example.com"
+						gotErr = o.Validate()
+						wantErrStr = "proxy URL is not allowed"
+					})
+					It("should report an error", AssertError())
+				})
+
+				Describe("when TLS server name is specified", func() {
+					BeforeEach(func() {
+						o.ShootCluster.TLSServerName = "custom.example.com"
+						gotErr = o.Validate()
+						wantErrStr = "tls-server-name is not allowed"
+					})
+					It("should report an error", AssertError())
+				})
+
+				Describe("when certificate authority data is empty", func() {
+					BeforeEach(func() {
+						o.ShootCluster.CertificateAuthorityData = []byte{}
+						gotErr = o.Validate()
+					})
+					It("should report an error", func() {
+						Expect(gotErr).To(HaveOccurred())
+						Expect(gotErr.Error()).To(ContainSubstring("invalid certificate authority data"))
+					})
+				})
+
+				Describe("when certificate authority data is malformed", func() {
+					BeforeEach(func() {
+						o.ShootCluster.CertificateAuthorityData = []byte("not-pem-data")
+						gotErr = o.Validate()
+					})
+					It("should report an error", func() {
+						Expect(gotErr).To(HaveOccurred())
+						Expect(gotErr.Error()).To(ContainSubstring("invalid certificate authority data"))
+					})
+				})
+
+				Describe("when certificate authority data has non-CERTIFICATE block", func() {
+					BeforeEach(func() {
+						o.ShootCluster.CertificateAuthorityData = sharedClientCert.PrivateKeyPEM
+						gotErr = o.Validate()
+					})
+					It("should report an error", func() {
+						Expect(gotErr).To(HaveOccurred())
+						Expect(gotErr.Error()).To(ContainSubstring("invalid certificate authority data"))
+					})
+				})
+
+				Describe("when certificate authority data has trailing garbage", func() {
+					BeforeEach(func() {
+						o.ShootCluster.CertificateAuthorityData = append(shootCaData, []byte("\ntrailing garbage")...)
+						gotErr = o.Validate()
+					})
+					It("should report an error", func() {
+						Expect(gotErr).To(HaveOccurred())
+						Expect(gotErr.Error()).To(ContainSubstring("invalid certificate authority data"))
+					})
 				})
 
 				Describe("when access level is not valid", func() {
@@ -313,16 +367,10 @@ var _ = Describe("GetClientCertificate", func() {
 	})
 
 	Context("Certificate and Key Validation", func() {
-		var (
-			caCert     *secrets.Certificate
-			clientCert *secrets.Certificate
-		)
+		var clientCert *secrets.Certificate
 
 		BeforeEach(func() {
-			DeferCleanup(test.WithVar(&secrets.Clock, testing.NewFakeClock(fakeNow())))
-
-			caCert = generateCaCert()
-			clientCert = generateClientCert(caCert, 10*time.Minute)
+			clientCert = sharedClientCert
 		})
 
 		Describe("validateClientCertificate", func() {
@@ -385,7 +433,6 @@ var _ = Describe("GetClientCertificate", func() {
 
 	Context("Cached certificate validation", func() {
 		var (
-			caCert     *secrets.Certificate
 			clientCert *secrets.Certificate
 			storeKey   certificatecache.Key
 			f          *TestFactory
@@ -393,14 +440,16 @@ var _ = Describe("GetClientCertificate", func() {
 		)
 
 		BeforeEach(func() {
-			DeferCleanup(test.WithVar(&secrets.Clock, testing.NewFakeClock(fakeNow())))
+			caHash, err := c.CertificateAuthorityHash(shootCaData)
+			Expect(err).ToNot(HaveOccurred())
 
 			storeKey = certificatecache.Key{
-				ShootServer:           "https://api.mycluster.myproject.foo",
-				ShootName:             "mycluster",
-				ShootNamespace:        "garden-myproject",
-				GardenClusterIdentity: "landscape-dev",
-				AccessLevel:           "auto",
+				ShootServer:                   "https://api.mycluster.myproject.foo",
+				ShootCertificateAuthorityHash: caHash,
+				ShootName:                     "mycluster",
+				ShootNamespace:                "garden-myproject",
+				GardenClusterIdentity:         "landscape-dev",
+				AccessLevel:                   "auto",
 			}
 
 			f = &TestFactory{
@@ -413,8 +462,7 @@ var _ = Describe("GetClientCertificate", func() {
 			cmd = c.NewCmdGetClientCertificate(f, ioStreams)
 			cmd.SetArgs([]string{})
 
-			caCert = generateCaCert()
-			clientCert = generateClientCert(caCert, 10*time.Minute)
+			clientCert = sharedClientCert
 
 			execInfo, err := json.Marshal(&v1ExecCredential)
 			Expect(err).ToNot(HaveOccurred())
@@ -528,11 +576,42 @@ var _ = Describe("GetClientCertificate", func() {
 			Expect(err.Error()).To(ContainSubstring("invalid cached client key"))
 			Expect(err.Error()).To(ContainSubstring("must contain exactly one PEM block"))
 		})
+
+		It("should not return a cached certificate when invoking with a different certificate authority", func() {
+			By("Storing valid certificate in cache for the default CA")
+
+			cachedCertificateSet := certificatecache.CertificateSet{
+				ClientCertificateData: clientCert.CertificatePEM,
+				ClientKeyData:         clientCert.PrivateKeyPEM,
+			}
+			f.store.inMemory[storeKey] = struct {
+				certificateSet *certificatecache.CertificateSet
+				err            error
+			}{
+				certificateSet: &cachedCertificateSet,
+				err:            nil,
+			}
+
+			By("Invoking with a different CA in KUBERNETES_EXEC_INFO")
+
+			differentCA := generateCaCert().CertificatePEM
+			v1ExecCredential.Spec.Cluster.CertificateAuthorityData = differentCA
+			execInfo, err := json.Marshal(&v1ExecCredential)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(os.Setenv("KUBERNETES_EXEC_INFO", string(execInfo))).To(Succeed())
+
+			f.restClient = fakeKubeconfigRESTClient(expirationTime, nil, shootCaData, clientCert.CertificatePEM, clientCert.PrivateKeyPEM)
+
+			Expect(cmd.ParseFlags([]string{"--expiration-seconds=42"})).To(Succeed())
+			err = cmd.Execute()
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("no matching cluster found for server and certificate authority data"))
+			Expect(f.store.findByKeyCalls).To(Equal(1))
+		})
 	})
 
-	Context("Tests expecting success", func() {
+	Context("Command execution", func() {
 		var (
-			caCert     *secrets.Certificate
 			clientCert *secrets.Certificate
 			storeKey   certificatecache.Key
 			f          *TestFactory
@@ -541,14 +620,16 @@ var _ = Describe("GetClientCertificate", func() {
 		)
 
 		BeforeEach(func() {
-			DeferCleanup(test.WithVar(&secrets.Clock, testing.NewFakeClock(fakeNow())))
+			caHash, err := c.CertificateAuthorityHash(shootCaData)
+			Expect(err).ToNot(HaveOccurred())
 
 			storeKey = certificatecache.Key{
-				ShootServer:           "https://api.mycluster.myproject.foo",
-				ShootName:             "mycluster",
-				ShootNamespace:        "garden-myproject",
-				GardenClusterIdentity: "landscape-dev",
-				AccessLevel:           "auto",
+				ShootServer:                   "https://api.mycluster.myproject.foo",
+				ShootCertificateAuthorityHash: caHash,
+				ShootName:                     "mycluster",
+				ShootNamespace:                "garden-myproject",
+				GardenClusterIdentity:         "landscape-dev",
+				AccessLevel:                   "auto",
 			}
 
 			f = &TestFactory{
@@ -561,10 +642,9 @@ var _ = Describe("GetClientCertificate", func() {
 			cmd = c.NewCmdGetClientCertificate(f, ioStreams)
 			cmd.SetArgs([]string{})
 
-			caCert = generateCaCert()
-			clientCert = generateClientCert(caCert, validity)
+			clientCert = sharedClientCert
 
-			restClient = fakeKubeconfigRESTClient(expirationTime, nil, clientCert.CertificatePEM, clientCert.PrivateKeyPEM)
+			restClient = fakeKubeconfigRESTClient(expirationTime, nil, shootCaData, clientCert.CertificatePEM, clientCert.PrivateKeyPEM)
 		})
 
 		Context("KUBERNETES_EXEC_INFO is set", func() {
@@ -666,6 +746,66 @@ var _ = Describe("GetClientCertificate", func() {
 				Entry("v1beta1ExecCredential", "v1beta1", &v1beta1ExecCredential),
 			)
 
+			Context("CA rotation matching", Ordered, ContinueOnFailure, func() {
+				var bundle func(ids []string) []byte
+
+				BeforeAll(func() {
+					oldCA := generateCaCert().CertificatePEM
+					newCA := generateCaCert().CertificatePEM
+					unknownCA := generateCaCert().CertificatePEM
+
+					certificateAuthorities := map[string][]byte{
+						"old":     oldCA,
+						"new":     newCA,
+						"unknown": unknownCA,
+					}
+					bundle = func(ids []string) []byte {
+						var result []byte
+						for _, id := range ids {
+							result = append(result, certificateAuthorities[id]...)
+						}
+
+						return result
+					}
+				})
+
+				DescribeTable("Should match invoking certificate authorities against the authoritative bundle",
+					func(invokingCAIDs, authoritativeCAIDs []string, shouldSucceed bool) {
+						v1ExecCredential.Spec.Cluster.CertificateAuthorityData = bundle(invokingCAIDs)
+						execInfo, err := json.Marshal(&v1ExecCredential)
+						Expect(err).ToNot(HaveOccurred())
+						Expect(os.Setenv("KUBERNETES_EXEC_INFO", string(execInfo))).To(Succeed())
+
+						f.restClient = fakeKubeconfigRESTClient(
+							expirationTime,
+							nil,
+							bundle(authoritativeCAIDs),
+							clientCert.CertificatePEM,
+							clientCert.PrivateKeyPEM,
+						)
+
+						Expect(cmd.ParseFlags([]string{"--expiration-seconds=42"})).To(Succeed())
+
+						err = cmd.Execute()
+						if shouldSucceed {
+							Expect(err).ToNot(HaveOccurred())
+							Expect(out.String()).ToNot(BeEmpty())
+						} else {
+							Expect(err).To(HaveOccurred())
+							Expect(out.String()).To(BeEmpty())
+						}
+					},
+					Entry("accepts the old CA during rotation", []string{"old"}, []string{"old", "new"}, true),
+					Entry("accepts the new CA during rotation", []string{"new"}, []string{"old", "new"}, true),
+					Entry("accepts the complete rotation bundle", []string{"old", "new"}, []string{"old", "new"}, true),
+					Entry("accepts the complete rotation bundle in a different order", []string{"new", "old"}, []string{"old", "new"}, true),
+					Entry("ignores duplicate certificates", []string{"old", "old"}, []string{"old", "new"}, true),
+					Entry("rejects an unknown CA", []string{"unknown"}, []string{"old", "new"}, false),
+					Entry("rejects a bundle containing an additional unknown CA", []string{"old", "unknown"}, []string{"old", "new"}, false),
+					Entry("rejects the old CA after rotation", []string{"old"}, []string{"new"}, false),
+				)
+			})
+
 			DescribeTable("Should fetch the client certificate for different access levels",
 				func(accessLevel string, forbiddenPaths []string) {
 					execInfo, err := json.Marshal(&v1ExecCredential)
@@ -674,7 +814,7 @@ var _ = Describe("GetClientCertificate", func() {
 
 					By("By using fake RESTClient")
 
-					f.restClient = fakeKubeconfigRESTClient(expirationTime, forbiddenPaths, clientCert.CertificatePEM, clientCert.PrivateKeyPEM)
+					f.restClient = fakeKubeconfigRESTClient(expirationTime, forbiddenPaths, shootCaData, clientCert.CertificatePEM, clientCert.PrivateKeyPEM)
 
 					By("executing the command")
 					Expect(cmd.ParseFlags([]string{
@@ -716,107 +856,71 @@ var _ = Describe("GetClientCertificate", func() {
 			)
 		})
 
-		Context("accepting arguments only - support for kubectl versions < 1.20.0", func() {
+		Context("KUBERNETES_EXEC_INFO is unset", func() {
 			BeforeEach(func() {
 				Expect(os.Unsetenv("KUBERNETES_EXEC_INFO")).To(Succeed())
 
 				storeKey.ShootServer = ""
-			})
-
-			It("Should return cached client certificate", func() {
-				// a rest client is not needed for this test
-				f.restClient = nil
-
-				By("Ensure valid certificate is found in certificate cache")
-
-				cachedCertificateSet := certificatecache.CertificateSet{
-					ClientCertificateData: clientCert.CertificatePEM,
-					ClientKeyData:         clientCert.PrivateKeyPEM,
-				}
+				storeKey.ShootCertificateAuthorityHash = ""
 				f.store.inMemory[storeKey] = struct {
 					certificateSet *certificatecache.CertificateSet
 					err            error
 				}{
-					certificateSet: &cachedCertificateSet,
-					err:            nil,
+					certificateSet: &certificatecache.CertificateSet{
+						ClientCertificateData: clientCert.CertificatePEM,
+						ClientKeyData:         clientCert.PrivateKeyPEM,
+					},
 				}
-
-				By("executing the command")
-
-				args := []string{
-					"--garden-cluster-identity=landscape-dev",
-					"--name=mycluster",
-					"--namespace=garden-myproject",
-				}
-				Expect(cmd.ParseFlags(args)).To(Succeed())
-				Expect(cmd.Execute()).To(Succeed())
-
-				By("Expecting cached certificate to be printed to out buffer")
-				Expect(out.String()).To(Equal(fmt.Sprintf(
-					`{"kind":"ExecCredential","apiVersion":"client.authentication.k8s.io/v1beta1","spec":{"interactive":false},"status":{"expirationTimestamp":%q,"clientCertificateData":%q,"clientKeyData":%q}}
-`,
-					expirationTime.Format(time.RFC3339),
-					string(clientCert.CertificatePEM),
-					string(clientCert.PrivateKeyPEM),
-				)))
-				Expect(errOut.String()).To(BeEmpty())
 			})
 
-			It("Should fetch the client certificate", func() {
-				By("By using fake RESTClient")
+			Context("with argument-only disabled (default)", Label("argument-only-disabled"), func() {
+				It("should reject missing exec info before cache lookup", func() {
+					args := []string{
+						"--garden-cluster-identity=landscape-dev",
+						"--name=mycluster",
+						"--namespace=garden-myproject",
+					}
+					Expect(cmd.ParseFlags(args)).To(Succeed())
 
-				f.restClient = restClient
+					err := cmd.Execute()
+					Expect(err).To(MatchError("failed to complete command options: KUBERNETES_EXEC_INFO env var is unset or empty"))
+					Expect(out.String()).To(BeEmpty())
+					Expect(f.store.findByKeyCalls).To(BeZero())
+				})
+			})
 
-				By("executing the command")
+			Context("with argument-only enabled", Label("argument-only-enabled"), func() {
+				It("should return a cached certificate", func() {
+					args := []string{
+						"--garden-cluster-identity=landscape-dev",
+						"--name=mycluster",
+						"--namespace=garden-myproject",
+					}
+					Expect(cmd.ParseFlags(args)).To(Succeed())
 
-				args := []string{
-					"--garden-cluster-identity=landscape-dev",
-					"--name=mycluster",
-					"--namespace=garden-myproject",
-					"--expiration-seconds=42",
-				}
-				Expect(cmd.ParseFlags(args)).To(Succeed())
-				Expect(cmd.Execute()).To(Succeed())
-
-				By("Expecting certificate to be printed to out buffer")
-				Expect(out.String()).To(Equal(fmt.Sprintf(
-					`{"kind":"ExecCredential","apiVersion":"client.authentication.k8s.io/v1beta1","spec":{"interactive":false},"status":{"expirationTimestamp":%q,"clientCertificateData":%q,"clientKeyData":%q}}
-`,
-					expirationTime.Format(time.RFC3339),
-					string(clientCert.CertificatePEM),
-					string(clientCert.PrivateKeyPEM),
-				)))
-				Expect(errOut.String()).To(BeEmpty())
-
-				By("Expecting certificate to be stored in cache")
-
-				wantCertificateSet := certificatecache.CertificateSet{
-					ClientCertificateData: clientCert.CertificatePEM,
-					ClientKeyData:         clientCert.PrivateKeyPEM,
-				}
-				Expect(f.store.inMemory[storeKey]).To(Equal(struct {
-					certificateSet *certificatecache.CertificateSet
-					err            error
-				}{
-					certificateSet: &wantCertificateSet,
-					err:            nil,
-				}))
+					Expect(cmd.Execute()).To(Succeed())
+					Expect(out.String()).ToNot(BeEmpty())
+					Expect(errOut.String()).To(ContainSubstring("WARNING: insecure argument-only mode is enabled"))
+					Expect(errOut.String()).To(ContainSubstring("certificate authorities"))
+					Expect(f.store.findByKeyCalls).To(Equal(1))
+				})
 			})
 		})
 	})
 })
 
-func fakeKubeconfigRESTClient(expirationTime time.Time, forbiddenPaths []string, certPEM, keyPEM []byte) *fake.RESTClient {
+func fakeKubeconfigRESTClient(expirationTime time.Time, forbiddenPaths []string, clusterCAPEM, certPEM, keyPEM []byte) *fake.RESTClient {
 	codecs := serializer.NewCodecFactory(clientgoscheme.Scheme)
 	codec := codecs.LegacyCodec(authenticationv1alpha1.SchemeGroupVersion)
 
 	certB64 := base64.StdEncoding.EncodeToString(certPEM)
 	keyB64 := base64.StdEncoding.EncodeToString(keyPEM)
+	clusterCAB64 := base64.StdEncoding.EncodeToString(clusterCAPEM)
 
 	kubeconfigTemplate := `apiVersion: v1
 clusters:
 - cluster:
-    certificate-authority-data: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCi4uLgotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0t
+    certificate-authority-data: %s
     server: https://api.mycluster.myproject.foo
   name: shoot--myproject--mycluster
 contexts:
@@ -833,7 +937,7 @@ users:
     client-certificate-data: %s
     client-key-data: %s
 `
-	kubeconfig := fmt.Sprintf(kubeconfigTemplate, certB64, keyB64)
+	kubeconfig := fmt.Sprintf(kubeconfigTemplate, clusterCAB64, certB64, keyB64)
 
 	adminKubeconfigResponse := &authenticationv1alpha1.AdminKubeconfigRequest{
 		Status: authenticationv1alpha1.AdminKubeconfigRequestStatus{
@@ -1005,7 +1109,8 @@ func newFakeStore() *fakeStore {
 
 // fakeStore implements store.Interface interface.
 type fakeStore struct {
-	inMemory map[certificatecache.Key]struct {
+	findByKeyCalls int
+	inMemory       map[certificatecache.Key]struct {
 		certificateSet *certificatecache.CertificateSet
 		err            error
 	}
@@ -1014,6 +1119,8 @@ type fakeStore struct {
 var _ store.Interface = &fakeStore{}
 
 func (s *fakeStore) FindByKey(key certificatecache.Key) (*certificatecache.CertificateSet, error) {
+	s.findByKeyCalls++
+
 	res, ok := s.inMemory[key]
 	if !ok {
 		return nil, errors.New("item not found")

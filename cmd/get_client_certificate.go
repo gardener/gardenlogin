@@ -9,7 +9,9 @@ package cmd
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"crypto/x509"
+	"encoding/hex"
 	"encoding/json"
 	"encoding/pem"
 	"errors"
@@ -52,6 +54,16 @@ const (
 	accessLevelAdmin  = "admin"
 	accessLevelViewer = "viewer"
 )
+
+// insecureAllowArgumentOnly can be set to "true" at build time for debugging with:
+// -ldflags "-X github.com/gardener/gardenlogin/cmd.insecureAllowArgumentOnly=true"
+// This mode cannot verify kubectl's effective server, CA, proxy, or TLS settings.
+var insecureAllowArgumentOnly = "false"
+
+// IsInsecureArgumentOnlyAllowed returns true if insecure argument-only mode was enabled at build time.
+func IsInsecureArgumentOnlyAllowed() bool {
+	return insecureAllowArgumentOnly == "true"
+}
 
 var (
 	ioStreams = util.IOStreams{
@@ -102,11 +114,7 @@ type GetClientCertificateOptions struct {
 	// Common user flags
 
 	// ShootCluster holds the data of the shoot kubernetes cluster.
-	// This field is not set for kubectl versions older than v1.20.0 and starting with v1.11.0 as the KUBERNETES_EXEC_INFO environment variable is not set
-	// If not nil, the Server and CertificateAuthorityData must match with what is returned in the kubeconfig of the "shoots/adminkubeconfig" subresource.
-	// If nil the cluster of the current context from the kubeconfig returned by the "shoots/adminkubeconfig" subresource is used.
-	// TODO once we drop support for kubectl versions older than v1.20.0, this field should be made required
-	// +optional
+	// The Server and CertificateAuthorityData must match what is returned in the kubeconfig of the "shoots/adminkubeconfig" subresource.
 	ShootCluster *clientauthenticationv1.Cluster
 	// ShootRef references the shoot cluster for which the client certificate credentials should be obtained
 	ShootRef ShootRef
@@ -200,13 +208,15 @@ func NewCmdGetClientCertificate(f util.Factory, ioStreams util.IOStreams) *cobra
 
 // Complete adapts from the command line args to the data required.
 func (o *GetClientCertificateOptions) Complete(f util.Factory, _ *cobra.Command, _ []string) error {
-	env := os.Getenv(execInfoEnv)
-	if env != "" { // KUBERNETES_EXEC_INFO env variable set for kubectl versions starting with v1.20.0
-		obj, _, err := exec.LoadExecCredential([]byte(env))
-		if err != nil {
+	obj, _, err := exec.LoadExecCredentialFromEnv()
+	if err != nil {
+		if !IsInsecureArgumentOnlyAllowed() || os.Getenv(execInfoEnv) != "" {
 			return err
 		}
 
+		fmt.Fprintln(o.IOStreams.ErrOut, "WARNING: insecure argument-only mode is enabled; the server, certificate authorities, proxy, and TLS settings used by kubectl are not verified")
+		o.GroupVersion = clientauthenticationv1beta1.SchemeGroupVersion
+	} else {
 		o.GroupVersion = obj.GetObjectKind().GroupVersionKind().GroupVersion()
 
 		obj, err = scheme.Scheme.ConvertToVersion(obj, clientauthenticationv1.SchemeGroupVersion)
@@ -240,14 +250,9 @@ func (o *GetClientCertificateOptions) Complete(f util.Factory, _ *cobra.Command,
 		if o.ShootRef.Namespace == "" {
 			o.ShootRef.Namespace = extension.ShootRef.Namespace
 		}
-	} else {
-		// fallback to v1beta1 for kubectl versions < v1.20.0
-		o.GroupVersion = clientauthenticationv1beta1.SchemeGroupVersion
 	}
 
 	o.CertificateCacheStore = f.CertificateStore(o.CertificateCacheDir)
-
-	var err error
 
 	if o.GardenClusterIdentity != "" {
 		o.GardenCoreV1Beta1RESTClient, err = f.RESTClient(o.GardenClusterIdentity)
@@ -267,13 +272,29 @@ func (o *GetClientCertificateOptions) Complete(f util.Factory, _ *cobra.Command,
 
 // Validate makes sure provided values for GetClientCertificateOptions are valid.
 func (o *GetClientCertificateOptions) Validate() error {
-	if os.Getenv(execInfoEnv) != "" {
-		if o.ShootCluster == nil {
+	if o.ShootCluster == nil {
+		if !IsInsecureArgumentOnlyAllowed() {
 			return errors.New("cluster must be specified")
 		}
-
+	} else {
 		if err := validateServer(o.ShootCluster.Server); err != nil {
 			return err
+		}
+
+		if o.ShootCluster.InsecureSkipTLSVerify {
+			return errors.New("skipping TLS verify is not allowed")
+		}
+
+		if o.ShootCluster.ProxyURL != "" {
+			return errors.New("proxy URL is not allowed")
+		}
+
+		if o.ShootCluster.TLSServerName != "" {
+			return errors.New("tls-server-name is not allowed")
+		}
+
+		if _, err := parseCertificateFingerprints(o.ShootCluster.CertificateAuthorityData); err != nil {
+			return fmt.Errorf("invalid certificate authority data: %w", err)
 		}
 	}
 
@@ -314,8 +335,12 @@ func validateServer(server string) error {
 		return fmt.Errorf("server must be a valid URL: %w", err)
 	}
 
-	if u.Scheme != "http" && u.Scheme != "https" {
-		return fmt.Errorf("server URL scheme must be http or https, got %q", u.Scheme)
+	if u.Scheme != "https" {
+		return fmt.Errorf("server URL scheme must be https, got %q", u.Scheme)
+	}
+
+	if len(u.Host) == 0 {
+		return errors.New("server URL host must not be empty")
 	}
 
 	return nil
@@ -325,18 +350,27 @@ func validateServer(server string) error {
 func (o *GetClientCertificateOptions) RunGetClientCertificate(ctx context.Context) error {
 	logger := klog.FromContext(ctx)
 
-	// server is empty for kubectl versions older than v1.20.0 as the KUBERNETES_EXEC_INFO environment variable is not set
 	server := ""
+	caHash := ""
+
 	if o.ShootCluster != nil {
 		server = o.ShootCluster.Server
+
+		fingerprints, err := parseCertificateFingerprints(o.ShootCluster.CertificateAuthorityData)
+		if err != nil {
+			return fmt.Errorf("failed to parse certificate authority data: %w", err)
+		}
+
+		caHash = hashFingerprints(fingerprints)
 	}
 
 	certificateCacheKey := certificatecache.Key{
-		ShootServer:           server,
-		ShootName:             o.ShootRef.Name,
-		ShootNamespace:        o.ShootRef.Namespace,
-		GardenClusterIdentity: o.GardenClusterIdentity,
-		AccessLevel:           o.AccessLevel,
+		ShootServer:                   server,
+		ShootCertificateAuthorityHash: caHash,
+		ShootName:                     o.ShootRef.Name,
+		ShootNamespace:                o.ShootRef.Namespace,
+		GardenClusterIdentity:         o.GardenClusterIdentity,
+		AccessLevel:                   o.AccessLevel,
 	}
 
 	cachedCertificateSet, err := o.CertificateCacheStore.FindByKey(certificateCacheKey)
@@ -600,7 +634,6 @@ func authInfoFromKubeconfigForCluster(kubeconfig []byte, cluster *clientauthenti
 
 func clusterNameFromConfigForCluster(config api.Config, cluster *clientauthenticationv1.Cluster) (string, error) {
 	if cluster == nil {
-		// fallback to cluster from current context (to support kubectl versions older v1.20.0)
 		context := config.Contexts[config.CurrentContext]
 		if context == nil {
 			return "", fmt.Errorf("no context found for current context %s", config.CurrentContext)
@@ -609,13 +642,27 @@ func clusterNameFromConfigForCluster(config api.Config, cluster *clientauthentic
 		return context.Cluster, nil
 	}
 
+	configuredCAs, err := parseCertificateFingerprints(cluster.CertificateAuthorityData)
+	if err != nil {
+		return "", fmt.Errorf("invalid configured certificate authority data: %w", err)
+	}
+
 	for name, c := range config.Clusters {
-		if cluster.Server == c.Server {
+		if cluster.Server != c.Server {
+			continue
+		}
+
+		authoritativeCAs, err := parseCertificateFingerprints(c.CertificateAuthorityData)
+		if err != nil {
+			return "", fmt.Errorf("invalid authoritative certificate authority data for cluster %q: %w", name, err)
+		}
+
+		if isFingerprintSubset(configuredCAs, authoritativeCAs) {
 			return name, nil
 		}
 	}
 
-	return "", fmt.Errorf("no matching cluster found for server %s", cluster.Server)
+	return "", fmt.Errorf("no matching cluster found for server and certificate authority data")
 }
 
 func userNameFromConfigForClusterName(config api.Config, clusterName string) (string, error) {
@@ -731,4 +778,98 @@ func ValidateClientKey(keyData []byte) error {
 	}
 
 	return errors.New("client key is not a valid private key (tried PKCS#1 and PKCS#8 formats)")
+}
+
+type certificateFingerprint [sha256.Size]byte
+
+func parseCertificateFingerprints(data []byte) (map[certificateFingerprint]struct{}, error) {
+	remaining := bytes.TrimSpace(data)
+	if len(remaining) == 0 {
+		return nil, errors.New("certificate authority data must not be empty")
+	}
+
+	fingerprints := make(map[certificateFingerprint]struct{})
+
+	for len(remaining) > 0 {
+		if !bytes.HasPrefix(remaining, []byte("-----BEGIN CERTIFICATE-----")) {
+			return nil, errors.New("certificate authority data must start with a CERTIFICATE PEM BEGIN line")
+		}
+
+		block, rest := pem.Decode(remaining)
+		if block == nil {
+			return nil, errors.New("failed to decode certificate authority PEM block")
+		}
+
+		if block.Type != "CERTIFICATE" {
+			return nil, fmt.Errorf("unexpected PEM block type %q, expected CERTIFICATE", block.Type)
+		}
+
+		if len(block.Headers) != 0 {
+			return nil, errors.New("certificate authority PEM block must not include headers")
+		}
+
+		certificate, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse certificate authority certificate: %w", err)
+		}
+
+		fingerprints[sha256.Sum256(certificate.Raw)] = struct{}{}
+		remaining = bytes.TrimSpace(rest)
+	}
+
+	if len(fingerprints) == 0 {
+		return nil, errors.New("no valid certificates found in certificate authority data")
+	}
+
+	return fingerprints, nil
+}
+
+func isFingerprintSubset(subset, set map[certificateFingerprint]struct{}) bool {
+	if len(subset) == 0 {
+		return false
+	}
+
+	for fp := range subset {
+		if _, ok := set[fp]; !ok {
+			return false
+		}
+	}
+
+	return true
+}
+
+// hashFingerprints returns the SHA-256 hash of the sorted certificate fingerprints.
+// if there are multiple certificates, their fingerprints are sorted before hashing to ensure a canonical order.
+func hashFingerprints(fingerprints map[certificateFingerprint]struct{}) string {
+	fps := make([]certificateFingerprint, 0, len(fingerprints))
+	for fp := range fingerprints {
+		fps = append(fps, fp)
+	}
+
+	slices.SortFunc(fps, func(a, b certificateFingerprint) int {
+		return bytes.Compare(a[:], b[:])
+	})
+
+	hasher := sha256.New()
+	for _, fp := range fps {
+		hasher.Write(fp[:])
+	}
+
+	return hex.EncodeToString(hasher.Sum(nil))
+}
+
+// CertificateAuthorityHash returns the canonical SHA-256 digest of the CA certificate set.
+func CertificateAuthorityHash(data []byte) (string, error) {
+	fingerprints, err := parseCertificateFingerprints(data)
+	if err != nil {
+		return "", err
+	}
+
+	return hashFingerprints(fingerprints), nil
+}
+
+// ValidateCertificateAuthorityData ensures the CA certificate bundle is valid and contains only CERTIFICATE blocks without headers.
+func ValidateCertificateAuthorityData(data []byte) error {
+	_, err := parseCertificateFingerprints(data)
+	return err
 }
