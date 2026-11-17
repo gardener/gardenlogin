@@ -245,12 +245,24 @@ var _ = Describe("GetClientCertificate", func() {
 						wantErrStr = "cluster must be specified"
 					})
 
-					Context("with argument-only disabled (default)", Label("argument-only-disabled"), func() {
-						It("should report an error", AssertError())
+					Context("with argument-only enabled", func() {
+						BeforeEach(func() {
+							if !c.IsInsecureArgumentOnlyAllowed() {
+								Skip("requires insecureAllowArgumentOnly=true")
+							}
+						})
+
+						It("should not report an error", AssertSuccess())
 					})
 
-					Context("with argument-only enabled", Label("argument-only-enabled"), func() {
-						It("should not report an error", AssertSuccess())
+					Context("with argument-only disabled (default)", func() {
+						BeforeEach(func() {
+							if c.IsInsecureArgumentOnlyAllowed() {
+								Skip("requires insecureAllowArgumentOnly=false")
+							}
+						})
+
+						It("should report an error", AssertError())
 					})
 				})
 
@@ -701,6 +713,56 @@ var _ = Describe("GetClientCertificate", func() {
 				Entry("v1ExecCredential (auto)", "v1", "auto", &v1ExecCredential),
 			)
 
+			It("should reuse a cached certificate after CA retirement only until certificate expiry", func() {
+				execInfo, err := json.Marshal(&v1ExecCredential)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(os.Setenv("KUBERNETES_EXEC_INFO", string(execInfo))).To(Succeed())
+
+				runCommand := func() (string, error) {
+					streams, _, output, _ := util.NewTestIOStreams()
+					command := c.NewCmdGetClientCertificate(f, streams)
+					command.SetArgs([]string{"--expiration-seconds=42"})
+					err := command.Execute()
+
+					return output.String(), err
+				}
+
+				By("fetching and caching a credential before CA retirement")
+
+				f.restClient = restClient
+				cachedOutput, err := runCommand()
+				Expect(err).ToNot(HaveOccurred())
+				Expect(f.store.inMemory[storeKey].certificateSet).ToNot(BeNil())
+
+				By("retiring the supplied CA in the authoritative bundle")
+
+				newCA := generateCaCert().CertificatePEM
+				requestCount := 0
+				rotatedClient := fakeKubeconfigRESTClient(expirationTime, nil, newCA, clientCert.CertificatePEM, clientCert.PrivateKeyPEM)
+				transport := rotatedClient.Client.Transport
+				rotatedClient.Client = fake.CreateHTTPClient(func(req *http.Request) (*http.Response, error) {
+					requestCount++
+					return transport.RoundTrip(req)
+				})
+				f.restClient = rotatedClient
+
+				By("returning the cached credential without an authoritative request before expiry")
+
+				f.clock.fakeTime = expirationTime.Add(-time.Second)
+				output, err := runCommand()
+				Expect(err).ToNot(HaveOccurred())
+				Expect(output).To(Equal(cachedOutput))
+				Expect(requestCount).To(BeZero())
+
+				By("rejecting the retired CA when the cached certificate expires")
+
+				f.clock.fakeTime = expirationTime
+				output, err = runCommand()
+				Expect(err).To(MatchError(ContainSubstring("no matching cluster found for server and certificate authority data")))
+				Expect(output).To(BeEmpty())
+				Expect(requestCount).To(Equal(1))
+			})
+
 			DescribeTable("Should fetch the client certificate for v1 and v1beta1 ExecCredentials",
 				func(version string, execCredential interface{}) {
 					By(fmt.Sprintf("using %s", version))
@@ -873,23 +935,13 @@ var _ = Describe("GetClientCertificate", func() {
 				}
 			})
 
-			Context("with argument-only disabled (default)", Label("argument-only-disabled"), func() {
-				It("should reject missing exec info before cache lookup", func() {
-					args := []string{
-						"--garden-cluster-identity=landscape-dev",
-						"--name=mycluster",
-						"--namespace=garden-myproject",
+			Context("with argument-only enabled", func() {
+				BeforeEach(func() {
+					if !c.IsInsecureArgumentOnlyAllowed() {
+						Skip("requires insecureAllowArgumentOnly=true")
 					}
-					Expect(cmd.ParseFlags(args)).To(Succeed())
-
-					err := cmd.Execute()
-					Expect(err).To(MatchError("failed to complete command options: KUBERNETES_EXEC_INFO env var is unset or empty"))
-					Expect(out.String()).To(BeEmpty())
-					Expect(f.store.findByKeyCalls).To(BeZero())
 				})
-			})
 
-			Context("with argument-only enabled", Label("argument-only-enabled"), func() {
 				It("should return a cached certificate", func() {
 					args := []string{
 						"--garden-cluster-identity=landscape-dev",
@@ -903,6 +955,28 @@ var _ = Describe("GetClientCertificate", func() {
 					Expect(errOut.String()).To(ContainSubstring("WARNING: insecure argument-only mode is enabled"))
 					Expect(errOut.String()).To(ContainSubstring("certificate authorities"))
 					Expect(f.store.findByKeyCalls).To(Equal(1))
+				})
+			})
+
+			Context("with argument-only disabled (default)", func() {
+				BeforeEach(func() {
+					if c.IsInsecureArgumentOnlyAllowed() {
+						Skip("requires insecureAllowArgumentOnly=false")
+					}
+				})
+
+				It("should reject missing exec info before cache lookup", func() {
+					args := []string{
+						"--garden-cluster-identity=landscape-dev",
+						"--name=mycluster",
+						"--namespace=garden-myproject",
+					}
+					Expect(cmd.ParseFlags(args)).To(Succeed())
+
+					err := cmd.Execute()
+					Expect(err).To(MatchError("failed to complete command options: KUBERNETES_EXEC_INFO env var is unset or empty"))
+					Expect(out.String()).To(BeEmpty())
+					Expect(f.store.findByKeyCalls).To(BeZero())
 				})
 			})
 		})

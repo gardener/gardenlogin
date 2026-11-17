@@ -423,6 +423,8 @@ func (o *GetClientCertificateOptions) getExecCredential(ctx context.Context, cer
 		validNotAfter := now.Before(certificate.NotAfter.UTC())
 
 		if validNotBefore && validNotAfter {
+			// Cache hits do not recheck the authoritative CA bundle. Credentials
+			// remain reusable until certificate expiry, even if a CA is retired.
 			logger.V(4).Info("valid certificate in cache")
 
 			return &clientauthenticationv1.ExecCredential{
