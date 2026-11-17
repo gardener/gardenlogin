@@ -16,12 +16,6 @@ GO_TEST_TIMEOUT="${GO_TEST_TIMEOUT:-5m}"
 GO_TEST_RACE="${GO_TEST_RACE:-0}"
 GO_TEST_LD_FLAGS="${GO_TEST_LD_FLAGS:-$("${SOURCE_PATH}/hack/get-build-ld-flags.sh")}"
 
-if [[ "${insecureAllowArgumentOnly:-false}" == "true" ]]; then
-  GINKGO_LABEL_FILTER="${GINKGO_LABEL_FILTER:-!argument-only-disabled}"
-else
-  GINKGO_LABEL_FILTER="${GINKGO_LABEL_FILTER:-!argument-only-enabled}"
-fi
-
 OS=${OS:-$(go env GOOS)}
 ARCH=${ARCH:-$(go env GOARCH)}
 
@@ -42,7 +36,7 @@ function run_test {
     ld_flags=(-ldflags "${GO_TEST_LD_FLAGS}")
   fi
 
-  GO111MODULE=on go test "${ld_flags[@]}" ${RACE_FLAG} -timeout "${GO_TEST_TIMEOUT}" -coverprofile cover.out ./... -ginkgo.label-filter="${GINKGO_LABEL_FILTER}"
+  GO111MODULE=on go test "${ld_flags[@]}" ${RACE_FLAG} -timeout "${GO_TEST_TIMEOUT}" -coverprofile cover.out ./... -ginkgo.label-filter="${GINKGO_LABEL_FILTER:-}"
 
   popd
 }
