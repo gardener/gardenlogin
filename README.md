@@ -86,7 +86,7 @@ export GL_CONFIG_NAME=myconfig # without extension!
 An example `kubeconfig` for a shoot cluster looks like the following:
 
 ```yaml
-# supported with kubectl version v1.20.0 onwards
+# supported with kubectl version >= v1.22.0
 apiVersion: v1
 kind: Config
 clusters:
@@ -112,6 +112,7 @@ users:
   user:
     exec:
       apiVersion: client.authentication.k8s.io/v1
+      interactiveMode: Never
       provideClusterInfo: true
       command: kubectl
       args:
@@ -119,7 +120,34 @@ users:
       - get-client-certificate
 ```
 
-An example `kubeconfig` supporting `kubectl` version `v1.11.0` onwards can be found under [example/01-kubeconfig-legacy.yaml](example/01-kubeconfig-legacy.yaml).
+The kubeconfig example above supports kubectl 1.22 and newer.
+For kubectl 1.20 or 1.21, set `user.exec.apiVersion` to
+`client.authentication.k8s.io/v1beta1` and keep `provideClusterInfo: true`.
+
+Older versions require the [legacy kubeconfig](example/01-kubeconfig-legacy.yaml)
+and a local build with `insecureAllowArgumentOnly=true` (see below).
+
+### Insecure Argument-Only Debug Mode
+
+By default, gardenlogin requires cluster information from `KUBERNETES_EXEC_INFO`
+to verify the server and certificate authorities trusted by kubectl. Kubectl versions older than 1.20 do not provide this variable.
+
+The `insecureAllowArgumentOnly` build flag allows gardenlogin to use only the
+Shoot and Garden references passed as command arguments when the environment
+variable is missing. In this case, gardenlogin does not verify the server or
+certificate authorities trusted by kubectl.
+
+For temporary debugging, you can build a local binary with the argument-only fallback enabled:
+
+```sh
+make build insecureAllowArgumentOnly=true
+```
+
+This mode is disabled by default and must not be used for release or distributed
+binaries, as it does not verify the certificate authorities trusted by kubectl.
+It also cannot verify kubectl's effective server, TLS server name, proxy,
+or other transport settings before issuing or returning a cached credential.
+
 
 ## Authentication Flow
 The following describes the flow to authenticate against a `Shoot` cluster as cluster admin:
@@ -131,7 +159,8 @@ The following describes the flow to authenticate against a `Shoot` cluster as cl
 2. `kubectl` is then configured to use the downloaded `kubeconfig` for the shoot cluster
 3. A `kubectl` command is executed, e.g. `kubectl get namespaces`
 4. The `gardenlogin` credential plugin is called to print the `ExecCredential` to `stdout`, see [input and output formats](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#input-and-output-formats) for more information.
-5. In case a valid credential is already cached locally it is returned directly. Otherwise, a new credential has to be requested
+5. In case a valid credential is already cached locally it is returned directly. Otherwise, a new credential has to be requested.
+   Cached credentials may be returned until certificate expiry without rechecking whether the supplied CA has been retired. The requested lifetime defaults to 15 minutes but is configurable with `--expiration-seconds`. New credential requests check the current authoritative CA bundle.
 6. According to the garden cluster identity under `clusters[].cluster.extensions[].extension.gardenClusterIdentity`, the `gardenlogin` plugin searches a matching garden cluster in its configuration file (`gardenClusters[].clusterIdentity`) to get the `kubeconfig` of the garden cluster
 7. The `gardenlogin` plugin calls `shoots/adminkubeconfig` resource with an `AdminKubeConfigRequest` for the `Shoot` cluster referenced under `clusters[].cluster.extensions[].extension.shootRef`
 8. The `gardenlogin` plugin takes the x509 client certificate from the returned `AdminKubeConfigRequest` under `status.kubeconfig` and prints it as `ExecCredential` to `stdout`
