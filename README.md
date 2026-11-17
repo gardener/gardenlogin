@@ -86,7 +86,7 @@ export GL_CONFIG_NAME=myconfig # without extension!
 An example `kubeconfig` for a shoot cluster looks like the following:
 
 ```yaml
-# supported with kubectl version v1.20.0 onwards
+# supported with kubectl version >= v1.22.0
 apiVersion: v1
 kind: Config
 clusters:
@@ -112,6 +112,7 @@ users:
   user:
     exec:
       apiVersion: client.authentication.k8s.io/v1
+      interactiveMode: Never
       provideClusterInfo: true
       command: kubectl
       args:
@@ -119,25 +120,33 @@ users:
       - get-client-certificate
 ```
 
-An example legacy `kubeconfig` for older kubectl versions can be found under [example/01-kubeconfig-legacy.yaml](example/01-kubeconfig-legacy.yaml). It only works with the insecure debug build described below.
+The kubeconfig example above supports kubectl 1.22 and newer.
+For kubectl 1.20 or 1.21, set `user.exec.apiVersion` to
+`client.authentication.k8s.io/v1beta1` and keep `provideClusterInfo: true`.
+
+Older versions require the [legacy kubeconfig](example/01-kubeconfig-legacy.yaml)
+and a local build with `insecureAllowArgumentOnly=true` (see below).
 
 ### Insecure Argument-Only Debug Mode
 
-By default, gardenlogin requires kubectl to provide its effective cluster
-configuration through `KUBERNETES_EXEC_INFO`. Versions of `kubectl` older than 1.20 do not provide this env variable. 
-When `KUBERNETES_EXEC_INFO` is absent, gardenlogin relies only on the
-Shoot and Garden references passed as command arguments.
+By default, gardenlogin requires cluster information from `KUBERNETES_EXEC_INFO`
+to verify the server and certificate authorities trusted by kubectl. Kubectl versions older than 1.20 do not provide this variable.
 
-For temporary debugging, a local binary can be built with the argument-only fallback enabled:
+The `insecureAllowArgumentOnly` build flag allows gardenlogin to use only the
+Shoot and Garden references passed as command arguments when the environment
+variable is missing. In this case, gardenlogin does not verify the server or
+certificate authorities trusted by kubectl.
+
+For temporary debugging, you can build a local binary with the argument-only fallback enabled:
 
 ```sh
 make build insecureAllowArgumentOnly=true
 ```
 
 This mode is disabled by default and must not be used for release or distributed
-binaries, as it does not verify the certificate authorities trusted by kubectl. It also cannot
-verify kubectl's effective server, TLS server name, proxy, or other transport
-settings before issuing or returning a cached credential.
+binaries, as it does not verify the certificate authorities trusted by kubectl.
+It also cannot verify kubectl's effective server, TLS server name, proxy,
+or other transport settings before issuing or returning a cached credential.
 
 
 ## Authentication Flow
